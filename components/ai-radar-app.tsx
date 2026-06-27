@@ -1248,7 +1248,7 @@ function WebsiteNav({
           </div>
         </button>
 
-        <nav className="scrollbar-none flex min-w-0 flex-nowrap items-center gap-2 overflow-x-auto">
+        <nav className="scrollbar-none flex min-w-0 flex-wrap items-center gap-2 overflow-visible sm:flex-nowrap sm:overflow-x-auto lg:overflow-visible">
           {tabItems.map((tab) => {
             const Icon = tab.icon;
             const active = activeTab === tab.id;
@@ -1272,10 +1272,10 @@ function WebsiteNav({
           })}
         </nav>
 
-        <div className="scrollbar-none flex max-w-full shrink-0 flex-nowrap items-center gap-2 overflow-x-auto xl:gap-3">
+        <div className="scrollbar-none flex max-w-full shrink-0 flex-wrap items-center gap-2 overflow-visible sm:flex-nowrap sm:overflow-x-auto lg:overflow-visible xl:gap-3">
           <SourcePill source={feedSource} />
           {authUser ? (
-            <div className="flex shrink-0 items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] py-1 pl-3 pr-1">
+            <div className="flex min-w-0 shrink items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] py-1 pl-3 pr-1">
               <UserRound className="h-4 w-4 text-violet-200" />
               <span className="max-w-24 truncate text-sm font-bold text-slate-200 xl:max-w-40">{authUser.name || authUser.email}</span>
               <button
