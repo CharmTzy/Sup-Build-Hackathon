@@ -12,8 +12,9 @@ AI Radar is a mobile-first Next.js app for a hackathon MVP: live AI news becomes
 - Launchpad page with saved tutorials, mini project progress, completion tracking, prompt-copy counts, streaks, LinkedIn post export, and GitHub README export.
 - Saved page for bookmarked Radar/Search posts.
 - Preferences page for audience, interests, preferred access, and difficulty. Radar and Search use these preferences when loading stored posts and triggering live refreshes.
+- Launchpad status tracking for saved tools, prompt-copy analytics, saved exports, and in-app system status for Database/Exa/OpenAI readiness.
 - Ask Radar assistant with OpenAI-backed answers when configured and local fallback answers when offline.
-- Server-side Exa + OpenAI integration with mock fallback so the demo still works without API keys.
+- Server-side Exa + OpenAI integration with database-first rendering so the UI does not block on generation.
 - Optional Neon Postgres cache for live Radar cards.
 - URL crawl endpoint that uses Exa content extraction and OpenAI card generation.
 - Normalized database tables for Radar posts, feed membership, crawl cache, and saved items.
@@ -48,8 +49,8 @@ OPENAI_MODEL=gpt-5.5
 DATABASE_URL=postgresql://...neon.tech/...?...sslmode=require
 ```
 
-Without API keys, the app uses the full mock dataset in `lib/mock-data.ts`.
-Without `DATABASE_URL`, live Exa/OpenAI still works but does not persist generated cards.
+Without API keys or stored database posts, Radar/Search show empty live states instead of mock feed data.
+Without `DATABASE_URL`, live Exa/OpenAI can respond but generated cards and user state are not persisted.
 
 With keys, these route handlers become live:
 
@@ -59,6 +60,9 @@ With keys, these route handlers become live:
 - `app/api/crawl/route.ts`: Exa URL crawl/content extraction -> OpenAI structured AI Radar cards
 - `app/api/health/route.ts`: safe server-side checks for database, Exa, and OpenAI configuration
 - `app/api/preferences/route.ts`: save and load user preferences by anonymous client ID
+- `app/api/launchpad/route.ts`: save and load Launchpad status by anonymous client ID
+- `app/api/events/route.ts`: record prompt-copy events
+- `app/api/exports/route.ts`: persist generated exports
 
 ### Crawl API
 
@@ -72,10 +76,7 @@ You can also send `urls` with up to 6 URLs.
 
 ### Neon Cache
 
-Recommended: use Neon for `DATABASE_URL`. The app will skip localhost
-connection strings unless you explicitly set `ALLOW_LOCAL_DATABASE_URL=true`, so
-you do not get noisy `ECONNREFUSED 127.0.0.1:5432` errors when local Postgres is
-not running.
+Recommended: use Neon for `DATABASE_URL`.
 
 #### Option A: paste an existing Neon connection string
 
@@ -125,7 +126,6 @@ For local Postgres during development, this format is supported too:
 
 ```bash
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/sup_hackathon?schema=public
-ALLOW_LOCAL_DATABASE_URL=true
 ```
 
 The database itself must already exist. The app auto-creates required tables with
@@ -138,6 +138,9 @@ Current tables:
 - `saved_items`: saved posts by anonymous client ID.
 - `radar_cache`: legacy JSON cache kept for compatibility.
 - `user_preferences`: audience/interests/access/difficulty preferences for personalized Radar and Search.
+- `launchpad_items`: per-user Launchpad status for saved tools.
+- `prompt_copy_events`: prompt-copy analytics for proof-of-work progress.
+- `generated_exports`: generated LinkedIn/README exports.
 
 ### Health Check
 
@@ -158,6 +161,13 @@ npm run build
 npm run lint
 npm run db:init
 npm run db:create-neon
+npm run seed:radar
+```
+
+Seed demo content:
+
+```bash
+SEED_URLS=https://example.com/ai-update,https://example.com/ai-tool npm run seed:radar
 ```
 
 ## Deploy on Vercel (CI/CD)
@@ -193,8 +203,9 @@ deployments to Vercel.
 The deploy workflow skips safely until `VERCEL_TOKEN`, `VERCEL_ORG_ID`, and
 `VERCEL_PROJECT_ID` are present as GitHub Actions secrets.
 
-Without API keys, the deployed app still works using the mock dataset. Without
-`DATABASE_URL`, live Exa/OpenAI responses are not cached in Neon.
+Without API keys or stored database posts, deployed Radar/Search show empty live
+states. Set `EXA_API_KEY`, `OPENAI_API_KEY`, and `DATABASE_URL`, then seed or
+crawl content before a polished demo.
 
 See `DEPLOYMENT.md` for the full checklist and troubleshooting notes.
 
@@ -210,7 +221,7 @@ See `DEPLOYMENT.md` for the full checklist and troubleshooting notes.
 
 Finished:
 
-- Mobile-first Radar/Search/Build product flow with mock fallback data.
+- Mobile-first Radar/Search/Launchpad product flow with live/stored data.
 - Server routes for Radar, Search, and Ask Radar.
 - Live Exa search paired with OpenAI structured generation.
 - Optional Neon cache for the Radar feed.
@@ -221,10 +232,11 @@ Finished:
 - URL-to-Radar composer on the Radar page.
 - Preferences-backed Radar/Search loading with no mock feed data.
 - Save and unsave support for Launchpad/Saved items.
+- Database-backed Launchpad status controls, prompt-copy events, and generated exports.
+- Demo seed script for crawling curated URLs into Radar before judging.
 
 Still missing:
 
-- Database persistence for project progress, prompt-copy events, and exports.
 - A stronger worker/cron process for crawling preference-based content continuously.
 - Scheduled refresh job for daily Radar generation.
 - Auth or anonymous session IDs for multi-device persistence.
@@ -234,5 +246,5 @@ High-impact improvements:
 
 - Add a hackathon demo toggle showing `Live`, `Cached`, and `Mock` source states.
 - Cache Search and Crawl results by normalized query/URL hash.
-- Add one-click "Generate from URL" in the Search or Build tab.
-- Add seed SQL or a setup script for judges who want to inspect Neon tables.
+- Add one-click "Generate from URL" in Search or Launchpad too.
+- Add a background job queue for continuous preference-based crawling.

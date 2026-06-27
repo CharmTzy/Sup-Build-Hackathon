@@ -1,6 +1,6 @@
 import { neon } from "@neondatabase/serverless";
 import { Pool } from "pg";
-import type { AIUpdate, UserPreferences } from "@/lib/types";
+import type { AIUpdate, ProjectStatus, UserPreferences } from "@/lib/types";
 
 const CACHE_TTL_MS = 1000 * 60 * 60 * 6;
 
@@ -136,6 +136,44 @@ async function ensureSchema(db: Queryable) {
       preferences JSONB NOT NULL,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS launchpad_items (
+      client_id TEXT NOT NULL,
+      post_id TEXT NOT NULL REFERENCES radar_posts(id) ON DELETE CASCADE,
+      status TEXT NOT NULL DEFAULT 'Not signed up',
+      notes TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (client_id, post_id)
+    )
+  `);
+
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS launchpad_items_client_updated_idx
+    ON launchpad_items (client_id, updated_at DESC)
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS prompt_copy_events (
+      id BIGSERIAL PRIMARY KEY,
+      client_id TEXT NOT NULL,
+      post_id TEXT REFERENCES radar_posts(id) ON DELETE SET NULL,
+      prompt_type TEXT NOT NULL DEFAULT 'starter',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS generated_exports (
+      id BIGSERIAL PRIMARY KEY,
+      client_id TEXT NOT NULL,
+      post_id TEXT REFERENCES radar_posts(id) ON DELETE SET NULL,
+      export_type TEXT NOT NULL,
+      content TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
 
@@ -483,6 +521,15 @@ export async function saveItemForClient(clientId: string, item: AIUpdate) {
     [clientId, item.id],
   );
 
+  await db.query(
+    `
+    INSERT INTO launchpad_items (client_id, post_id, status, updated_at)
+    VALUES ($1, $2, 'Not signed up', NOW())
+    ON CONFLICT (client_id, post_id) DO NOTHING
+  `,
+    [clientId, item.id],
+  );
+
   return true;
 }
 
@@ -494,6 +541,13 @@ export async function deleteSavedItemForClient(clientId: string, postId: string)
   await db.query(
     `
     DELETE FROM saved_items
+    WHERE client_id = $1 AND post_id = $2
+  `,
+    [clientId, postId],
+  );
+  await db.query(
+    `
+    DELETE FROM launchpad_items
     WHERE client_id = $1 AND post_id = $2
   `,
     [clientId, postId],
@@ -538,4 +592,102 @@ export async function savePreferences(clientId: string, preferences: UserPrefere
   );
 
   return true;
+}
+
+export async function getLaunchpadStatuses(clientId: string) {
+  const db = getClient();
+  if (!db || !clientId) return null;
+
+  await ensureSchema(db);
+  const rows = await db.query<{ post_id: string; status: ProjectStatus }>(
+    `
+    SELECT post_id, status
+    FROM launchpad_items
+    WHERE client_id = $1
+    ORDER BY updated_at DESC
+  `,
+    [clientId],
+  );
+
+  return Object.fromEntries(rows.map((row) => [row.post_id, row.status]));
+}
+
+export async function setLaunchpadStatus(clientId: string, postId: string, status: ProjectStatus) {
+  const db = getClient();
+  if (!db || !clientId || !postId) return false;
+
+  await ensureSchema(db);
+  await db.query(
+    `
+    INSERT INTO launchpad_items (client_id, post_id, status, updated_at)
+    VALUES ($1, $2, $3, NOW())
+    ON CONFLICT (client_id, post_id)
+    DO UPDATE SET
+      status = EXCLUDED.status,
+      updated_at = NOW()
+  `,
+    [clientId, postId, status],
+  );
+
+  return true;
+}
+
+export async function recordPromptCopy(clientId: string, postId?: string, promptType = "starter") {
+  const db = getClient();
+  if (!db || !clientId) return false;
+
+  await ensureSchema(db);
+  await db.query(
+    `
+    INSERT INTO prompt_copy_events (client_id, post_id, prompt_type)
+    VALUES ($1, $2, $3)
+  `,
+    [clientId, postId ?? null, promptType],
+  );
+
+  return true;
+}
+
+export async function saveGeneratedExport(clientId: string, postId: string | undefined, exportType: string, content: string) {
+  const db = getClient();
+  if (!db || !clientId || !content) return false;
+
+  await ensureSchema(db);
+  await db.query(
+    `
+    INSERT INTO generated_exports (client_id, post_id, export_type, content)
+    VALUES ($1, $2, $3, $4)
+  `,
+    [clientId, postId ?? null, exportType, content],
+  );
+
+  return true;
+}
+
+export async function getSchemaHealth() {
+  const db = getClient();
+  if (!db) return null;
+
+  await ensureSchema(db);
+  const tables = [
+    "radar_posts",
+    "radar_feed_items",
+    "saved_items",
+    "user_preferences",
+    "launchpad_items",
+    "prompt_copy_events",
+    "generated_exports",
+    "radar_cache",
+  ];
+  const rows = await db.query<{ table_name: string }>(
+    `
+    SELECT table_name
+    FROM information_schema.tables
+    WHERE table_schema = 'public'
+      AND table_name = ANY($1)
+  `,
+    [tables],
+  );
+  const present = new Set(rows.map((row) => row.table_name));
+  return Object.fromEntries(tables.map((table) => [table, present.has(table)]));
 }

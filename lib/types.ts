@@ -76,7 +76,15 @@ export interface AIUpdate {
 }
 
 export type TabId = "radar" | "search" | "saved" | "build" | "preferences";
-export type ProjectStatus = "Not Started" | "In Progress" | "Completed";
+export type ProjectStatus =
+  | "Not Started"
+  | "In Progress"
+  | "Completed"
+  | "Not signed up"
+  | "Trial started"
+  | "Tried"
+  | "Locked"
+  | "Save for later";
 
 export interface UserPreferences {
   audience: "Student" | "Software Engineer" | "UI/UX Designer" | "Creator" | "Marketer" | "Founder" | "General";

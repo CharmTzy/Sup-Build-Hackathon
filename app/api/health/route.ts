@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getDatabaseConfigurationStatus, initializeDatabaseSchema } from "@/lib/db";
+import { getDatabaseConfigurationStatus, getSchemaHealth, initializeDatabaseSchema } from "@/lib/db";
 import { LiveDataError, searchExa } from "@/lib/live";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +13,8 @@ async function checkDatabase() {
 
   try {
     await initializeDatabaseSchema();
-    return { configured: true, ok: true, message: "Database connected and schema is ready." };
+    const schema = await getSchemaHealth();
+    return { configured: true, ok: true, message: "Database connected and schema is ready.", schema };
   } catch (error) {
     return {
       configured: true,

@@ -81,6 +81,16 @@ const preferenceInterestOptions = [
   "free tools",
 ];
 
+const launchpadStatuses: ProjectStatus[] = [
+  "Not signed up",
+  "Trial started",
+  "Tried",
+  "Locked",
+  "Save for later",
+  "In Progress",
+  "Completed",
+];
+
 function readStorage<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
   try {
@@ -290,7 +300,7 @@ function RadarCard({
   saved: boolean;
   onSave: (item: AIUpdate) => void;
   onTutorial: (item: AIUpdate) => void;
-  onCopyPrompt: (text: string, message?: string) => void;
+  onCopyPrompt: (text: string, message?: string, postId?: string) => void;
   onShare: (item: AIUpdate) => void;
   onDetails: (item: AIUpdate) => void;
 }) {
@@ -390,7 +400,7 @@ function RadarCard({
           <ActionButton icon={Play} onClick={() => onTutorial(item)}>
             Try Tutorial
           </ActionButton>
-          <ActionButton icon={Copy} onClick={() => onCopyPrompt(item.tutorial.prompt, "Starter prompt copied")}>
+          <ActionButton icon={Copy} onClick={() => onCopyPrompt(item.tutorial.prompt, "Starter prompt copied", item.id)}>
             Copy Prompt
           </ActionButton>
           <ActionButton icon={Bookmark} onClick={() => onSave(item)} active={saved}>
@@ -514,10 +524,12 @@ function ModalShell({
 
 function DetailsModal({
   item,
+  alternatives,
   onClose,
   onTutorial,
 }: {
   item: AIUpdate;
+  alternatives: AIUpdate[];
   onClose: () => void;
   onTutorial: (item: AIUpdate) => void;
 }) {
@@ -594,6 +606,25 @@ function DetailsModal({
             </div>
           </div>
         </section>
+
+        {(item.access.paidOnly || item.access.waitlistRequired) && alternatives.length ? (
+          <section className="rounded-2xl border border-emerald-300/20 bg-emerald-300/10 p-4">
+            <h4 className="text-sm font-black text-white">Free or easier alternatives</h4>
+            <div className="mt-3 grid gap-3">
+              {alternatives.slice(0, 3).map((alternative) => (
+                <article key={alternative.id} className="rounded-2xl border border-white/10 bg-[#0b0917]/50 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h5 className="font-black text-white">{alternative.toolName}</h5>
+                    <span className="rounded-full bg-emerald-300 px-2 py-1 text-[11px] font-black text-slate-950">
+                      {alternative.access.openSource ? "Open source" : "Free tier"}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-slate-300">{alternative.summary}</p>
+                </article>
+              ))}
+            </div>
+          </section>
+        ) : null}
 
         <section className="rounded-2xl border border-white/10 bg-white/[0.05] p-4">
           <h4 className="text-sm font-black text-white">Starter prompt or checklist</h4>
@@ -723,6 +754,7 @@ function MiniProjectCard({
   onComplete,
   onExport,
   onRemove,
+  onStatus,
 }: {
   item: AIUpdate;
   status: ProjectStatus;
@@ -730,6 +762,7 @@ function MiniProjectCard({
   onComplete: (item: AIUpdate) => void;
   onExport: (item: AIUpdate, type: "linkedin" | "readme") => void;
   onRemove: (item: AIUpdate) => void;
+  onStatus: (item: AIUpdate, status: ProjectStatus) => void;
 }) {
   return (
     <article className="rounded-3xl border border-white/10 bg-white/[0.06] p-4 backdrop-blur-xl">
@@ -783,6 +816,26 @@ function MiniProjectCard({
           <ActionButton icon={X} onClick={() => onRemove(item)}>
             Remove from Launchpad
           </ActionButton>
+        </div>
+      </div>
+      <div className="mt-4">
+        <p className="mb-2 text-xs font-bold uppercase tracking-[0.1em] text-slate-400">Launchpad status</p>
+        <div className="flex flex-wrap gap-2">
+          {launchpadStatuses.map((nextStatus) => (
+            <button
+              key={nextStatus}
+              type="button"
+              onClick={() => onStatus(item, nextStatus)}
+              className={cx(
+                "rounded-full border px-3 py-1.5 text-xs font-bold transition",
+                status === nextStatus
+                  ? "border-violet-400/50 bg-violet-500 text-white"
+                  : "border-white/10 bg-white/[0.05] text-slate-300 hover:bg-white/[0.09]",
+              )}
+            >
+              {nextStatus}
+            </button>
+          ))}
         </div>
       </div>
     </article>
@@ -1052,6 +1105,8 @@ export default function AIRadarApp() {
   const [searchResults, setSearchResults] = useState<AIUpdate[] | null>(null);
   const [searching, setSearching] = useState(false);
   const [searchMessage, setSearchMessage] = useState("Search stored Radar posts; live crawling refreshes in the background.");
+  const [searchRefreshTick, setSearchRefreshTick] = useState(0);
+  const [searchAutoRefreshes, setSearchAutoRefreshes] = useState(0);
   const [crawlUrl, setCrawlUrl] = useState("");
   const [crawling, setCrawling] = useState(false);
   const [visibleRadarCount, setVisibleRadarCount] = useState(5);
@@ -1071,6 +1126,11 @@ export default function AIRadarApp() {
   const [compareOpen, setCompareOpen] = useState(false);
   const [askOpen, setAskOpen] = useState(false);
   const [exportData, setExportData] = useState<{ title: string; content: string } | null>(null);
+  const [health, setHealth] = useState<{
+    database?: { ok?: boolean };
+    exa?: { ok?: boolean };
+    openai?: { ok?: boolean };
+  } | null>(null);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -1136,6 +1196,30 @@ export default function AIRadarApp() {
     }
 
     void loadPreferencesFromDatabase();
+    return () => controller.abort();
+  }, [clientId]);
+
+  useEffect(() => {
+    if (!clientId) return;
+
+    const controller = new AbortController();
+    async function loadLaunchpadFromDatabase() {
+      try {
+        const response = await fetch(`/api/launchpad?clientId=${encodeURIComponent(clientId)}`, {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        if (!response.ok) return;
+        const data = (await response.json()) as { statuses?: Record<string, ProjectStatus> };
+        if (data.statuses && Object.keys(data.statuses).length) {
+          setProjectStatuses((current) => ({ ...current, ...data.statuses }));
+        }
+      } catch {
+        // Local Launchpad status remains active.
+      }
+    }
+
+    void loadLaunchpadFromDatabase();
     return () => controller.abort();
   }, [clientId]);
 
@@ -1208,13 +1292,45 @@ export default function AIRadarApp() {
       controller.abort();
       window.clearTimeout(timeout);
     };
-  }, [clientId, items, searchQuery]);
+  }, [clientId, items, searchQuery, searchRefreshTick]);
+
+  useEffect(() => {
+    const query = searchQuery.trim();
+    if (query.length < 2 || searching || (searchResults && searchResults.length > 0)) return;
+    if (!searchMessage.toLowerCase().includes("background")) return;
+    if (searchAutoRefreshes >= 2) return;
+
+    const timeout = window.setTimeout(() => {
+      setSearchAutoRefreshes((count) => count + 1);
+      setSearchRefreshTick((tick) => tick + 1);
+    }, 7000);
+    return () => window.clearTimeout(timeout);
+  }, [searchAutoRefreshes, searchMessage, searchQuery, searchResults, searching]);
 
   useEffect(() => {
     if (!toast) return;
     const timeout = window.setTimeout(() => setToast(null), 2400);
     return () => window.clearTimeout(timeout);
   }, [toast]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadHealth() {
+      try {
+        const response = await fetch("/api/health", { cache: "no-store" });
+        const data = (await response.json()) as typeof health;
+        if (!cancelled) setHealth(data);
+      } catch {
+        if (!cancelled) setHealth(null);
+      }
+    }
+    void loadHealth();
+    const interval = window.setInterval(loadHealth, 60000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, []);
 
   const allItems = useMemo(() => mergeItems(items, searchResults ?? [], Object.values(savedItems)), [items, savedItems, searchResults]);
   const itemMap = useMemo(() => new Map(allItems.map((item) => [item.id, item])), [allItems]);
@@ -1237,6 +1353,15 @@ export default function AIRadarApp() {
   const compareItems = compareIds.map((id) => itemMap.get(id)).filter((item): item is AIUpdate => Boolean(item));
   const progress = getProgressTotals(allItems, savedIds, projectStatuses, promptsCopied);
   const streak = streakDates.length;
+  const detailAlternatives = useMemo(() => {
+    if (!detailsItem) return [];
+    return allItems.filter(
+      (item) =>
+        item.id !== detailsItem.id &&
+        (item.category === detailsItem.category || item.tags.some((tag) => detailsItem.tags.includes(tag))) &&
+        (item.access.freeTier || item.access.openSource),
+    );
+  }, [allItems, detailsItem]);
 
   function showToast(message: string) { setToast(message); }
   function rememberItem(item: AIUpdate) { setSavedItems((c) => ({ ...c, [item.id]: item })); }
@@ -1287,6 +1412,11 @@ export default function AIRadarApp() {
       delete next[item.id];
       return next;
     });
+    setProjectStatuses((current) => {
+      const next = { ...current };
+      delete next[item.id];
+      return next;
+    });
     showToast("Removed from Launchpad");
 
     if (!clientId) return;
@@ -1323,27 +1453,45 @@ export default function AIRadarApp() {
     }
   }
 
-  async function copyText(text: string, message = "Prompt copied") {
+  async function copyText(text: string, message = "Prompt copied", postId?: string) {
     try {
       await navigator.clipboard.writeText(text);
       setPromptsCopied((n) => n + 1);
       showToast(message);
+      if (clientId) {
+        void fetch("/api/events", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ clientId, postId, promptType: "starter" }),
+        }).catch(() => {});
+      }
     } catch {
       showToast("Copy failed. Select the text manually.");
     }
   }
 
-  function startProject(item: AIUpdate) {
+  function setLaunchpadStatus(item: AIUpdate, status: ProjectStatus) {
     rememberItem(item);
-    setProjectStatuses((c) => ({ ...c, [item.id]: "In Progress" }));
+    setSavedIds((current) => (current.includes(item.id) ? current : [...current, item.id]));
+    setProjectStatuses((c) => ({ ...c, [item.id]: status }));
+    if (clientId) {
+      void fetch("/api/launchpad", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId, postId: item.id, status }),
+      }).catch(() => {});
+    }
+  }
+
+  function startProject(item: AIUpdate) {
+    setLaunchpadStatus(item, "In Progress");
     setActiveTab("build");
     showToast("Mini project started");
   }
 
   function completeProject(item: AIUpdate) {
-    rememberItem(item);
     const today = new Date().toISOString().slice(0, 10);
-    setProjectStatuses((c) => ({ ...c, [item.id]: "Completed" }));
+    setLaunchpadStatus(item, "Completed");
     setStreakDates((c) => (c.includes(today) ? c : [...c, today].slice(-7)));
     showToast("Project marked complete");
   }
@@ -1378,6 +1526,13 @@ export default function AIRadarApp() {
     const status = projectStatuses[item.id] ?? "Not Started";
     const content = type === "linkedin" ? buildLinkedInPost(item) : buildGithubReadme(item, status);
     setExportData({ title: type === "linkedin" ? "LinkedIn Post" : "GitHub README", content });
+    if (clientId) {
+      void fetch("/api/exports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId, postId: item.id, exportType: type, content }),
+      }).catch(() => {});
+    }
   }
 
   function exportFromBuild(type: "linkedin" | "readme") {
@@ -1390,6 +1545,7 @@ export default function AIRadarApp() {
 
   function handleSearchInput(value: string) {
     setSearchQuery(value);
+    setSearchAutoRefreshes(0);
     if (value.trim().length < 2) { setSearchResults(null); setSearching(false); }
   }
 
@@ -1494,8 +1650,8 @@ export default function AIRadarApp() {
       return;
     }
     setSearchResults(null);
-    setSearchQuery(`${query} `);
-    window.setTimeout(() => setSearchQuery(query), 0);
+    setSearchAutoRefreshes(0);
+    setSearchRefreshTick((tick) => tick + 1);
   }
 
   return (
@@ -1561,6 +1717,23 @@ export default function AIRadarApp() {
                     </button>
                   </div>
                   <p className="mt-3 text-sm leading-6 text-slate-300">{feedMessage}</p>
+                </div>
+                <div className="rounded-3xl border border-white/10 bg-white/[0.065] p-4 backdrop-blur-xl sm:col-span-2 lg:col-span-1">
+                  <h2 className="text-sm font-black uppercase tracking-[0.1em] text-white">System status</h2>
+                  <div className="mt-3 grid gap-2">
+                    {[
+                      ["Database", health?.database?.ok],
+                      ["Exa", health?.exa?.ok],
+                      ["OpenAI", health?.openai?.ok],
+                    ].map(([label, ok]) => (
+                      <div key={String(label)} className="flex items-center justify-between rounded-xl border border-white/10 bg-[#0b0917]/40 px-3 py-2 text-sm">
+                        <span className="font-bold text-slate-200">{label}</span>
+                        <span className={cx("rounded-full px-2 py-1 text-[11px] font-black", ok ? "bg-emerald-300 text-slate-950" : "bg-amber-300 text-slate-950")}>
+                          {ok ? "Ready" : "Check"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </aside>
             </div>
@@ -1896,6 +2069,7 @@ export default function AIRadarApp() {
                         onComplete={completeProject}
                         onExport={openExport}
                         onRemove={unsaveItem}
+                        onStatus={setLaunchpadStatus}
                       />
                     ))}
                   </div>
@@ -2020,13 +2194,14 @@ export default function AIRadarApp() {
       {detailsItem ? (
         <DetailsModal
           item={detailsItem}
+          alternatives={detailAlternatives}
           onClose={() => setDetailsItem(null)}
           onTutorial={(item) => { setDetailsItem(null); setTutorialItem(item); }}
         />
       ) : null}
 
       {tutorialItem ? (
-        <TutorialModal item={tutorialItem} onClose={() => setTutorialItem(null)} onCopy={(text) => copyText(text, "Prompt copied")} />
+        <TutorialModal item={tutorialItem} onClose={() => setTutorialItem(null)} onCopy={(text) => copyText(text, "Prompt copied", tutorialItem.id)} />
       ) : null}
 
       {compareOpen ? <CompareModal items={compareItems} onClose={() => setCompareOpen(false)} /> : null}
