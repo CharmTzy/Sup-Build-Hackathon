@@ -1,6 +1,6 @@
 import type { AIUpdate, Difficulty, PortfolioValue } from "@/lib/types";
 import { clampScore } from "@/lib/radar-utils";
-import { rescoreAIUpdate } from "@/lib/scoring";
+import { rescoreAIUpdate, scoreAIUpdatesWithOpenAI } from "@/lib/scoring";
 
 export interface ExaResult {
   id?: string;
@@ -482,7 +482,18 @@ async function transformWithOpenAIOrExaFallback(results: ExaResult[], query: str
     );
 
     if (generated?.length) {
-      return generated.map((item, index) => normalizeGeneratedItem(item, results[index], index));
+      const normalized = generated.map((item, index) => normalizeGeneratedItem(item, results[index], index));
+
+      try {
+        return await withAbortTimeout(
+          (signal) => scoreAIUpdatesWithOpenAI(normalized, signal),
+          OPENAI_TRANSFORM_TIMEOUT_MS,
+          "OpenAI scoring",
+        );
+      } catch (error) {
+        console.warn("OpenAI score analysis skipped; using generated scores:", error);
+        return normalized;
+      }
     }
   } catch (error) {
     console.warn("OpenAI enrichment skipped; using Exa-only live cards:", error);
@@ -569,7 +580,7 @@ export async function transformWithOpenAI(
 function normalizeGeneratedItem(item: GeneratedLiveItem, result: ExaResult | undefined, index: number): AIUpdate {
   const title = item.title || result?.title || `Live AI update ${index + 1}`;
 
-  return rescoreAIUpdate({
+  return {
     ...item,
     id: `live-${slugify(title, String(index))}`,
     date: result?.publishedDate?.slice(0, 10) || new Date().toISOString().slice(0, 10),
@@ -589,7 +600,7 @@ function normalizeGeneratedItem(item: GeneratedLiveItem, result: ExaResult | und
     isSaved: false,
     isFeatured: index === 0,
     sourceUrl: result?.url,
-  });
+  };
 }
 
 export async function getLiveRadarUpdates(query?: string) {

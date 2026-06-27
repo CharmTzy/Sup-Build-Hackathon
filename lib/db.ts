@@ -1,7 +1,7 @@
 import { neon } from "@neondatabase/serverless";
 import { Pool } from "pg";
-import { rescoreAIUpdate } from "@/lib/scoring";
 import type { AIUpdate, ProjectStatus, UserAccount, UserPreferences } from "@/lib/types";
+import { clampScore } from "@/lib/radar-utils";
 
 const CACHE_TTL_MS = 1000 * 60 * 60 * 6;
 
@@ -111,6 +111,13 @@ async function ensureSchema(db: Queryable) {
   `);
 
   await db.query(`
+    ALTER TABLE radar_posts
+    ADD COLUMN IF NOT EXISTS hype_score NUMERIC,
+    ADD COLUMN IF NOT EXISTS useful_score NUMERIC,
+    ADD COLUMN IF NOT EXISTS student_relevance_score NUMERIC
+  `);
+
+  await db.query(`
     CREATE TABLE IF NOT EXISTS radar_feed_items (
       cache_key TEXT NOT NULL,
       post_id TEXT NOT NULL REFERENCES radar_posts(id) ON DELETE CASCADE,
@@ -217,7 +224,9 @@ async function ensureSchema(db: Queryable) {
 }
 
 function rowToAIUpdate(row: Record<string, unknown>): AIUpdate {
-  return rescoreAIUpdate({
+  const rawPost = row.raw_post as AIUpdate | undefined;
+
+  return {
     id: String(row.id),
     title: String(row.title),
     toolName: String(row.tool_name),
@@ -227,11 +236,9 @@ function rowToAIUpdate(row: Record<string, unknown>): AIUpdate {
     whyItMatters: String(row.why_it_matters),
     tags: (row.tags ?? []) as AIUpdate["tags"],
     date: row.published_date ? new Date(row.published_date as string | Date).toISOString().slice(0, 10) : "",
-    hypeScore: Number(row.hype_score ?? (row.raw_post as AIUpdate | undefined)?.hypeScore ?? 0),
-    usefulScore: Number(row.useful_score ?? (row.raw_post as AIUpdate | undefined)?.usefulScore ?? 0),
-    studentRelevanceScore: Number(
-      row.student_relevance_score ?? (row.raw_post as AIUpdate | undefined)?.studentRelevanceScore ?? 0,
-    ),
+    hypeScore: clampScore(Number(row.hype_score ?? rawPost?.hypeScore ?? 0)),
+    usefulScore: clampScore(Number(row.useful_score ?? rawPost?.usefulScore ?? 0)),
+    studentRelevanceScore: clampScore(Number(row.student_relevance_score ?? rawPost?.studentRelevanceScore ?? 0)),
     difficulty: row.difficulty as AIUpdate["difficulty"],
     bestFor: (row.best_for ?? []) as AIUpdate["bestFor"],
     access: (row.access ?? {}) as AIUpdate["access"],
@@ -243,8 +250,8 @@ function rowToAIUpdate(row: Record<string, unknown>): AIUpdate {
     sourceType: row.source_type as AIUpdate["sourceType"],
     sourceUrl: row.source_url ? String(row.source_url) : undefined,
     isSaved: false,
-    isFeatured: Boolean((row.raw_post as AIUpdate | undefined)?.isFeatured),
-  });
+    isFeatured: Boolean(rawPost?.isFeatured),
+  };
 }
 
 function accountClientId(userId: string) {
@@ -301,12 +308,15 @@ async function upsertRadarPost(db: Queryable, item: AIUpdate) {
       mini_project,
       source_type,
       source_url,
+      hype_score,
+      useful_score,
+      student_relevance_score,
       raw_post,
       updated_at
     )
     VALUES (
       $1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11::jsonb, $12::jsonb,
-      $13::jsonb, $14::jsonb, $15::jsonb, $16::jsonb, $17::jsonb, $18, $19, $20::jsonb, NOW()
+      $13::jsonb, $14::jsonb, $15::jsonb, $16::jsonb, $17::jsonb, $18, $19, $20, $21, $22, $23::jsonb, NOW()
     )
     ON CONFLICT (id)
     DO UPDATE SET
@@ -328,6 +338,9 @@ async function upsertRadarPost(db: Queryable, item: AIUpdate) {
       mini_project = EXCLUDED.mini_project,
       source_type = EXCLUDED.source_type,
       source_url = EXCLUDED.source_url,
+      hype_score = EXCLUDED.hype_score,
+      useful_score = EXCLUDED.useful_score,
+      student_relevance_score = EXCLUDED.student_relevance_score,
       raw_post = EXCLUDED.raw_post,
       updated_at = NOW()
   `,
@@ -351,6 +364,9 @@ async function upsertRadarPost(db: Queryable, item: AIUpdate) {
       JSON.stringify(item.miniProject),
       item.sourceType,
       item.sourceUrl ?? null,
+      item.hypeScore,
+      item.usefulScore,
+      item.studentRelevanceScore,
       JSON.stringify(item),
     ],
   );
