@@ -10,6 +10,7 @@ interface Queryable {
 
 let client: Queryable | null = null;
 let schemaReady = false;
+let warnedLocalDatabaseUrl = false;
 
 function isLocalDatabaseUrl(databaseUrl: string) {
   try {
@@ -26,6 +27,17 @@ function getClient() {
 
   if (!client) {
     if (isLocalDatabaseUrl(databaseUrl)) {
+      if (process.env.ALLOW_LOCAL_DATABASE_URL !== "true") {
+        if (!warnedLocalDatabaseUrl) {
+          console.warn(
+            "DATABASE_URL points to localhost. Skipping database connection. Set DATABASE_URL to a Neon connection string, or set ALLOW_LOCAL_DATABASE_URL=true to use local Postgres.",
+          );
+          warnedLocalDatabaseUrl = true;
+        }
+
+        return null;
+      }
+
       const pool = new Pool({ connectionString: databaseUrl });
       client = {
         async query<T = Record<string, unknown>>(sql: string, params: unknown[] = []) {
@@ -47,7 +59,30 @@ function getClient() {
 }
 
 export function isDatabaseConfigured() {
-  return Boolean(process.env.DATABASE_URL);
+  return getDatabaseConfigurationStatus().configured;
+}
+
+export function getDatabaseConfigurationStatus() {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) {
+    return {
+      configured: false,
+      message: "DATABASE_URL is not configured.",
+    };
+  }
+
+  if (isLocalDatabaseUrl(databaseUrl) && process.env.ALLOW_LOCAL_DATABASE_URL !== "true") {
+    return {
+      configured: false,
+      message:
+        "DATABASE_URL points to localhost and is ignored. Use a Neon connection string, or set ALLOW_LOCAL_DATABASE_URL=true for local Postgres.",
+    };
+  }
+
+  return {
+    configured: true,
+    message: "DATABASE_URL is configured.",
+  };
 }
 
 async function ensureSchema(db: Queryable) {

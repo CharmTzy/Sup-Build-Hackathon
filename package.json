@@ -6,6 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "db:create-neon": "node scripts/create-neon-db.mjs",
+    "db:init": "node scripts/init-db.mjs",
     "lint": "eslint"
   },
   "dependencies": {

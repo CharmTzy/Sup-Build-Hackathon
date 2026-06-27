@@ -41,7 +41,7 @@ Create `.env.local`:
 EXA_API_KEY=your_exa_key
 OPENAI_API_KEY=your_openai_key
 OPENAI_MODEL=gpt-5.5
-DATABASE_URL=postgresql://...
+DATABASE_URL=postgresql://...neon.tech/...?...sslmode=require
 ```
 
 Without API keys, the app uses the full mock dataset in `lib/mock-data.ts`.
@@ -67,6 +67,50 @@ You can also send `urls` with up to 6 URLs.
 
 ### Neon Cache
 
+Recommended: use Neon for `DATABASE_URL`. The app will skip localhost
+connection strings unless you explicitly set `ALLOW_LOCAL_DATABASE_URL=true`, so
+you do not get noisy `ECONNREFUSED 127.0.0.1:5432` errors when local Postgres is
+not running.
+
+#### Option A: paste an existing Neon connection string
+
+Create `.env.local`:
+
+```bash
+DATABASE_URL=postgresql://USER:PASSWORD@HOST.neon.tech/DB?sslmode=require
+```
+
+Then initialize the schema:
+
+```bash
+npm run db:init
+```
+
+#### Option B: create a Neon project from this repo
+
+Create a Neon API key in the Neon Console, then set it locally:
+
+```bash
+NEON_API_KEY=your_neon_api_key
+NEON_PROJECT_NAME=ai-radar
+```
+
+For a personal API key tied to an organization, also set:
+
+```bash
+NEON_ORG_ID=your_org_id
+```
+
+Then run:
+
+```bash
+npm run db:create-neon
+```
+
+The script creates a Neon project, saves the returned `DATABASE_URL` into
+`.env.local`, and creates the `radar_cache` table. It masks the connection URL in
+terminal output and never writes secrets to tracked files.
+
 Set `DATABASE_URL` to a Neon Postgres connection string. The app creates a small
 `radar_cache` table automatically on first use and caches the daily Radar feed for
 6 hours. This is intentionally server-side only; do not expose `DATABASE_URL` with
@@ -76,6 +120,7 @@ For local Postgres during development, this format is supported too:
 
 ```bash
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/sup_hackathon?schema=public
+ALLOW_LOCAL_DATABASE_URL=true
 ```
 
 The database itself must already exist. The app auto-creates required tables with
@@ -98,7 +143,47 @@ characters, or the dev server was not restarted after changing `.env.local`.
 npm run dev
 npm run build
 npm run lint
+npm run db:init
+npm run db:create-neon
 ```
+
+## Deploy on Vercel (CI/CD)
+
+This repo includes GitHub Actions for continuous integration and production
+deployments to Vercel.
+
+| Workflow | Trigger | Purpose |
+| --- | --- | --- |
+| `.github/workflows/ci.yml` | Push + PR to `main` | `npm ci`, lint, production build |
+| `.github/workflows/deploy.yml` | Push to `main` | Build and deploy to Vercel production |
+
+### One-time setup
+
+1. **Create the Vercel project**
+   - Import [CharmTzy/Sup-Build-Hackathon](https://github.com/CharmTzy/Sup-Build-Hackathon) in the [Vercel dashboard](https://vercel.com/new), or run locally:
+   ```bash
+   npx vercel link
+   ```
+2. **Add production environment variables in Vercel** (Project → Settings → Environment Variables):
+   - `EXA_API_KEY`
+   - `OPENAI_API_KEY`
+   - `OPENAI_MODEL` (optional, defaults to `gpt-5.5` in code)
+   - `DATABASE_URL` (optional Neon cache)
+3. **Create a Vercel access token** at [vercel.com/account/tokens](https://vercel.com/account/tokens).
+4. **Add GitHub repository secrets** (Settings → Secrets and variables → Actions):
+   - `VERCEL_TOKEN` — token from step 3
+   - `VERCEL_ORG_ID` — from `.vercel/project.json` after `vercel link`
+   - `VERCEL_PROJECT_ID` — from `.vercel/project.json` after `vercel link`
+   - Optional (for CI build parity with production): `EXA_API_KEY`, `OPENAI_API_KEY`, `DATABASE_URL`
+5. **Push to `main`** — CI runs on every push/PR; deploy runs after merges to `main`.
+
+The deploy workflow skips safely until `VERCEL_TOKEN`, `VERCEL_ORG_ID`, and
+`VERCEL_PROJECT_ID` are present as GitHub Actions secrets.
+
+Without API keys, the deployed app still works using the mock dataset. Without
+`DATABASE_URL`, live Exa/OpenAI responses are not cached in Neon.
+
+See `DEPLOYMENT.md` for the full checklist and troubleshooting notes.
 
 ## Main Files
 

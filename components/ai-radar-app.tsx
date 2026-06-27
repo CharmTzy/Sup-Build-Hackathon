@@ -85,17 +85,6 @@ function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
 
-function RadarIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.5" strokeOpacity="0.35" />
-      <circle cx="12" cy="12" r="6.5" stroke="currentColor" strokeWidth="1.5" strokeOpacity="0.6" />
-      <circle cx="12" cy="12" r="2.5" fill="currentColor" />
-      <line x1="12" y1="12" x2="19.5" y2="5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
-  );
-}
-
 function RadarLogo() {
   return (
     <div className="relative grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 shadow-lg shadow-violet-600/30">

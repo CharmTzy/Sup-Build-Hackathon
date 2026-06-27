@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
-import { initializeDatabaseSchema, isDatabaseConfigured } from "@/lib/db";
+import { getDatabaseConfigurationStatus, initializeDatabaseSchema } from "@/lib/db";
 import { LiveDataError, searchExa } from "@/lib/live";
 
 export const dynamic = "force-dynamic";
 
 async function checkDatabase() {
-  if (!isDatabaseConfigured()) {
-    return { configured: false, ok: false, message: "DATABASE_URL is not configured." };
+  const status = getDatabaseConfigurationStatus();
+
+  if (!status.configured) {
+    return { configured: false, ok: false, message: status.message };
   }
 
   try {
