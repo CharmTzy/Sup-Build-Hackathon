@@ -157,7 +157,7 @@ function SourcePill({ source }: { source: "live" }) {
   return (
     <span
       title={`Source: ${source}`}
-      className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-violet-400/40 bg-violet-400/15 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-violet-200"
+      className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-violet-400/40 bg-violet-400/15 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-violet-200 sm:px-2.5 sm:text-[11px]"
     >
       <span className="h-1.5 w-1.5 rounded-full bg-violet-400" />
       Live / Stored
@@ -1272,7 +1272,7 @@ function WebsiteNav({
           })}
         </nav>
 
-        <div className="scrollbar-none flex max-w-full shrink-0 flex-wrap items-center gap-2 overflow-visible sm:flex-nowrap sm:overflow-x-auto lg:overflow-visible xl:gap-3">
+        <div className="scrollbar-none flex max-w-full shrink-0 flex-wrap items-center gap-1 overflow-visible sm:flex-nowrap sm:gap-2 sm:overflow-x-auto lg:overflow-visible xl:gap-3">
           <SourcePill source={feedSource} />
           {authUser ? (
             <div className="flex min-w-0 shrink items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] py-1 pl-3 pr-1">
@@ -1291,7 +1291,7 @@ function WebsiteNav({
             <button
               type="button"
               onClick={onLogin}
-              className="inline-flex h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-full border border-white/10 bg-white/[0.07] px-4 text-sm font-black text-white transition hover:border-violet-400/30 hover:bg-white/[0.1]"
+              className="inline-flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-white/10 bg-white/[0.07] px-3 text-xs font-black text-white transition hover:border-violet-400/30 hover:bg-white/[0.1] sm:h-11 sm:gap-2 sm:px-4 sm:text-sm"
             >
               <LogIn className="h-4 w-4" />
               Log in
@@ -1300,7 +1300,7 @@ function WebsiteNav({
           <button
             type="button"
             onClick={onAsk}
-            className="inline-flex h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-full bg-gradient-to-r from-blue-500 to-indigo-600 px-4 text-sm font-black text-white shadow-lg shadow-indigo-500/25 transition hover:from-blue-400 hover:to-indigo-500"
+            className="inline-flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-gradient-to-r from-blue-500 to-indigo-600 px-3 text-xs font-black text-white shadow-lg shadow-indigo-500/25 transition hover:from-blue-400 hover:to-indigo-500 sm:h-11 sm:gap-2 sm:px-4 sm:text-sm"
           >
             <MessageCircle className="h-4 w-4" />
             Ask Radar
