@@ -75,7 +75,7 @@ export interface AIUpdate {
   sourceUrl?: string;
 }
 
-export type TabId = "radar" | "search" | "build";
+export type TabId = "radar" | "search" | "saved" | "build";
 export type ProjectStatus = "Not Started" | "In Progress" | "Completed";
 
 export interface RadarResponse {

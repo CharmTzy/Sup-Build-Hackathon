@@ -22,15 +22,28 @@ export async function GET() {
       const cached = await getCachedRadarItems(cacheKey);
 
       if (cached?.items.length) {
+        getLiveRadarUpdates()
+          .then(async (items) => {
+            if (items?.length) await saveRadarItems(cacheKey, items);
+          })
+          .catch((error) => console.error("Background radar refresh failed:", error));
+
         return NextResponse.json({
           items: cached.items,
           source: "live",
           generatedAt: cached.updatedAt,
-          message: "Live AI Radar served from Neon cache.",
+          message: "Cached Radar posts loaded first. A live refresh is running in the background.",
         });
       }
 
-      const liveItems = await withTimeout(getLiveRadarUpdates(), 18000);
+      const livePromise = getLiveRadarUpdates();
+      livePromise
+        .then(async (items) => {
+          if (items?.length) await saveRadarItems(cacheKey, items);
+        })
+        .catch(() => {});
+
+      const liveItems = await withTimeout(livePromise, 18000);
 
       if (liveItems?.length) {
         await saveRadarItems(cacheKey, liveItems);

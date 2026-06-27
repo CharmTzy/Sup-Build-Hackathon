@@ -307,13 +307,13 @@ export async function transformWithOpenAI(results: ExaResult[], query: string) {
         {
           role: "system",
           content:
-            "You transform fresh AI news into practical learning cards for AI Radar. Produce JSON only through the schema. Be concrete, student-friendly, and skeptical of hype. Scores must be based on the source item: hype is buzz, useful is practical today, student relevance is value for students/builders.",
+            "You transform fresh AI news into practical learning posts for students and software engineers. Produce JSON only through the schema. Do not write hype-score style copy. Explain what happened, what is actually new, who can use it, what the user can try today, and how to set it up step by step. Use plain language for someone who has not opened the source link yet.",
         },
         {
           role: "user",
           content: JSON.stringify({
             task:
-              "Create AI Radar feed cards from these Exa search results. Use the source title and summary, but make the output actionable: tutorials, prompt packs, perks, limitations, and mini proof-of-work projects. Avoid invented pricing; use Unknown when unsure.",
+              "Create AI Radar reading posts from these Exa search results. The post must be useful even if the user never opens the original link. Use longExplanation for 'what is the news' with concrete context. Use whyItMatters for practical student/software-engineer relevance. Use tutorial for a detailed setup or first-try guide. Include limitations, but do not make limitations the main content. Avoid invented pricing; use Unknown when unsure.",
             query,
             results: results.map(compactExaResult),
           }),

@@ -5,7 +5,6 @@ import {
   BadgeCheck,
   Bell,
   Bookmark,
-  Brain,
   Check,
   CheckCircle2,
   ChevronRight,
@@ -29,7 +28,7 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import type { AIUpdate, ProjectStatus, RadarResponse, TabId } from "@/lib/types";
 import { getMockUpdates } from "@/lib/mock-data";
@@ -40,13 +39,13 @@ import {
   filterItems,
   formatDate,
   getAccessBadgeText,
-  getHypeMessage,
   getProgressTotals,
   popularSearches,
   searchItems,
 } from "@/lib/radar-utils";
 
 const storageKeys = {
+  clientId: "ai-radar.clientId",
   savedIds: "ai-radar.savedIds",
   savedItems: "ai-radar.savedItems",
   projectStatuses: "ai-radar.projectStatuses",
@@ -57,6 +56,7 @@ const storageKeys = {
 const tabItems: Array<{ id: TabId; label: string; icon: LucideIcon }> = [
   { id: "radar", label: "Radar", icon: Radar },
   { id: "search", label: "Search", icon: Search },
+  { id: "saved", label: "Saved", icon: Bookmark },
   { id: "build", label: "Build", icon: Hammer },
 ];
 
@@ -73,6 +73,19 @@ function readStorage<T>(key: string, fallback: T): T {
 function writeStorage(key: string, value: unknown) {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(key, JSON.stringify(value));
+}
+
+function getOrCreateClientId() {
+  if (typeof window === "undefined") return "";
+  const existing = window.localStorage.getItem(storageKeys.clientId);
+  if (existing) return existing;
+
+  const id =
+    typeof window.crypto?.randomUUID === "function"
+      ? window.crypto.randomUUID()
+      : `client-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  window.localStorage.setItem(storageKeys.clientId, id);
+  return id;
 }
 
 function mergeItems(...groups: AIUpdate[][]) {
@@ -111,6 +124,22 @@ function SourcePill({ source }: { source: "live" | "mock" }) {
       <span className={cx("h-1.5 w-1.5 rounded-full", source === "live" ? "bg-violet-400" : "bg-indigo-400")} />
       {source === "live" ? "Live Exa + OpenAI" : "Demo fallback"}
     </span>
+  );
+}
+
+function SourceLink({ item }: { item: AIUpdate }) {
+  if (!item.sourceUrl) return null;
+
+  return (
+    <a
+      href={item.sourceUrl}
+      target="_blank"
+      rel="noreferrer"
+      className="inline-flex min-w-0 items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-xs font-bold text-violet-100 transition hover:border-violet-300/40 hover:bg-violet-500/15"
+    >
+      <span className="truncate">Original source</span>
+      <ChevronRight className="h-3.5 w-3.5 shrink-0" />
+    </a>
   );
 }
 
@@ -168,37 +197,6 @@ function FilterChips({
   );
 }
 
-function HypeScore({ item }: { item: AIUpdate }) {
-  const scores = [
-    { label: "Hype", value: item.hypeScore, color: "from-blue-400 to-indigo-500" },
-    { label: "Useful", value: item.usefulScore, color: "from-violet-400 to-purple-500" },
-    { label: "Student", value: item.studentRelevanceScore, color: "from-emerald-300 to-teal-400" },
-  ];
-
-  return (
-    <div className="space-y-3 rounded-2xl border border-white/10 bg-[#0b0917]/40 p-3">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-sm font-semibold text-white">
-          <Brain className="h-4 w-4 text-violet-300" />
-          Hype Filter
-        </div>
-        <span className="text-xs text-slate-400">{getHypeMessage(item)}</span>
-      </div>
-      <div className="space-y-2">
-        {scores.map((score) => (
-          <div key={score.label} className="grid grid-cols-[64px_1fr_34px] items-center gap-2 text-xs">
-            <span className="font-medium text-slate-300">{score.label}</span>
-            <div className="h-2.5 overflow-hidden rounded-full bg-white/10">
-              <div className={`h-full rounded-full bg-gradient-to-r ${score.color}`} style={{ width: `${score.value * 10}%` }} />
-            </div>
-            <span className="text-right font-bold text-white">{score.value}/10</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function PerkBadges({ item, compact = false }: { item: AIUpdate; compact?: boolean }) {
   const badges = getAccessBadgeText(item);
 
@@ -251,22 +249,14 @@ function ActionButton({
 
 function RadarCard({
   item,
-  featured = false,
   saved,
   onSave,
-  onTutorial,
-  onPromptPack,
-  onProject,
   onShare,
   onDetails,
 }: {
   item: AIUpdate;
-  featured?: boolean;
   saved: boolean;
   onSave: (item: AIUpdate) => void;
-  onTutorial: (item: AIUpdate) => void;
-  onPromptPack: (item: AIUpdate) => void;
-  onProject: (item: AIUpdate) => void;
   onShare: (item: AIUpdate) => void;
   onDetails: (item: AIUpdate) => void;
 }) {
@@ -275,72 +265,79 @@ function RadarCard({
       layout
       initial={{ opacity: 0, y: 22 }}
       animate={{ opacity: 1, y: 0 }}
-      className={cx(
-        "relative overflow-hidden rounded-[28px] border bg-white/[0.06] p-4 shadow-2xl shadow-black/30 backdrop-blur-xl",
-        featured ? "border-violet-400/30" : "border-white/10",
-      )}
+      className="relative overflow-hidden rounded-[18px] border border-white/10 bg-white/[0.06] p-5 shadow-2xl shadow-black/25 backdrop-blur-xl"
     >
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-violet-400/60 to-transparent" />
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 space-y-2">
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded-full bg-gradient-to-r from-violet-500 to-indigo-500 px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-white shadow-sm shadow-violet-500/30">
-              {featured ? "Today's Pick" : item.category}
+              {item.category}
             </span>
             <span className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[11px] font-semibold text-slate-300">
               {item.sourceType}
             </span>
+            <span className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[11px] font-semibold text-slate-300">
+              {item.difficulty}
+            </span>
           </div>
-          <h3 className={cx("text-balance font-black leading-tight text-white", featured ? "text-2xl" : "text-xl")}>{item.title}</h3>
-          <p className="text-sm leading-6 text-slate-300">{item.summary}</p>
+          <SourceLink item={item} />
         </div>
-        <button
-          type="button"
-          title="View details"
-          onClick={() => onDetails(item)}
-          className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.06] text-slate-200 transition hover:border-violet-400/30 hover:text-violet-200"
-        >
-          <Eye className="h-4 w-4" />
-        </button>
-      </div>
 
-      <div className="mt-4 flex flex-wrap gap-1.5">
-        {item.tags.slice(0, 5).map((tag) => (
-          <span key={tag} className="rounded-full bg-white/[0.06] px-2 py-1 text-[11px] font-medium text-slate-400">
-            #{tag}
-          </span>
-        ))}
-      </div>
+        <div>
+          <p className="text-sm font-bold text-violet-200">{item.toolName}</p>
+          <h3 className="mt-2 text-2xl font-black leading-tight text-white">{item.title}</h3>
+          <p className="mt-3 text-base leading-7 text-slate-200">{item.summary}</p>
+        </div>
 
-      <div className="mt-4">
-        <HypeScore item={item} />
-      </div>
-
-      <div className="mt-4 space-y-3">
-        <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
-          <div className="mb-1 flex items-center gap-2 text-sm font-bold text-white">
-            <Sparkles className="h-4 w-4 text-blue-300" />
-            Why it matters
+        <section className="rounded-2xl border border-white/10 bg-[#0b0917]/35 p-4">
+          <div className="mb-2 flex items-center gap-2 text-sm font-black text-white">
+            <Sparkles className="h-4 w-4 text-violet-300" />
+            What is new
           </div>
-          <p className="text-sm leading-6 text-slate-300">{item.whyItMatters}</p>
-        </div>
-        <PerkBadges item={item} compact />
-      </div>
+          <p className="text-sm leading-6 text-slate-300">{item.longExplanation}</p>
+        </section>
 
-      <div className="mt-4 grid grid-cols-2 gap-2">
-        <ActionButton icon={Play} onClick={() => onTutorial(item)}>
-          Try Tutorial
-        </ActionButton>
-        <ActionButton icon={Bookmark} onClick={() => onSave(item)} active={saved}>
-          {saved ? "Saved" : "Save"}
-        </ActionButton>
-        <ActionButton icon={Copy} onClick={() => onPromptPack(item)}>
-          Prompt Pack
-        </ActionButton>
-        <ActionButton icon={Rocket} onClick={() => onProject(item)}>
-          Mini Project
-        </ActionButton>
-        <div className="col-span-2">
+        <section className="grid gap-4 lg:grid-cols-[1fr_1fr]">
+          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+            <h4 className="text-sm font-black text-white">Why students/builders should care</h4>
+            <p className="mt-2 text-sm leading-6 text-slate-300">{item.whyItMatters}</p>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+            <h4 className="text-sm font-black text-white">Try this in {item.tutorial.estimatedTime}</h4>
+            <p className="mt-2 text-sm leading-6 text-slate-300">{item.tutorial.goal}</p>
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+          <h4 className="text-sm font-black text-white">Quick setup path</h4>
+          <ol className="mt-3 space-y-2">
+            {item.tutorial.steps.slice(0, 4).map((step, index) => (
+              <li key={step} className="flex gap-3 text-sm leading-6 text-slate-300">
+                <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-violet-500 text-xs font-black text-white">
+                  {index + 1}
+                </span>
+                {step}
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        <div className="flex flex-wrap gap-1.5">
+          {item.tags.slice(0, 6).map((tag) => (
+            <span key={tag} className="rounded-full bg-white/[0.06] px-2 py-1 text-[11px] font-medium text-slate-400">
+              #{tag}
+            </span>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <ActionButton icon={Eye} onClick={() => onDetails(item)}>
+            Read Details
+          </ActionButton>
+          <ActionButton icon={Bookmark} onClick={() => onSave(item)} active={saved}>
+            {saved ? "Saved" : "Save"}
+          </ActionButton>
           <ActionButton icon={Share2} onClick={() => onShare(item)}>
             Share
           </ActionButton>
@@ -461,26 +458,92 @@ function DetailsModal({
   item,
   onClose,
   onTutorial,
-  onPromptPack,
-  onProject,
 }: {
   item: AIUpdate;
   onClose: () => void;
   onTutorial: (item: AIUpdate) => void;
-  onPromptPack: (item: AIUpdate) => void;
-  onProject: (item: AIUpdate) => void;
 }) {
   return (
     <ModalShell title={item.toolName} onClose={onClose}>
       <div className="space-y-5">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.12em] text-violet-300">{item.category}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="rounded-full bg-violet-500 px-2.5 py-1 text-xs font-bold uppercase tracking-[0.12em] text-white">
+              {item.category}
+            </p>
+            <SourceLink item={item} />
+          </div>
           <h3 className="mt-2 text-2xl font-black leading-tight text-white">{item.title}</h3>
-          <p className="mt-3 text-sm leading-6 text-slate-300">{item.longExplanation}</p>
+          <p className="mt-3 text-base leading-7 text-slate-200">{item.summary}</p>
         </div>
-        <HypeScore item={item} />
+
+        <section className="rounded-2xl border border-white/10 bg-white/[0.05] p-4">
+          <h4 className="text-sm font-black text-white">What happened</h4>
+          <p className="mt-2 text-sm leading-6 text-slate-300">{item.longExplanation}</p>
+        </section>
+
+        <section className="rounded-2xl border border-white/10 bg-white/[0.05] p-4">
+          <h4 className="text-sm font-black text-white">In simple terms</h4>
+          <p className="mt-2 text-sm leading-6 text-slate-300">
+            {item.toolName} is worth tracking because it may change how you study, build, research, or ship small
+            projects. You do not need to understand every technical detail first. Start by learning what problem it
+            solves, what input it needs, what output it gives you, and where it can fail.
+          </p>
+        </section>
+
+        <section className="rounded-2xl border border-white/10 bg-white/[0.05] p-4">
+          <h4 className="text-sm font-black text-white">Why it matters</h4>
+          <p className="mt-2 text-sm leading-6 text-slate-300">{item.whyItMatters}</p>
+        </section>
+
+        <section className="rounded-2xl border border-violet-400/20 bg-violet-500/10 p-4">
+          <h4 className="text-sm font-black text-white">{item.tutorial.title}</h4>
+          <p className="mt-2 text-sm leading-6 text-violet-100">{item.tutorial.goal}</p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <IconBadge icon={Zap}>{item.tutorial.estimatedTime}</IconBadge>
+            <IconBadge icon={BadgeCheck}>{item.tutorial.difficulty}</IconBadge>
+          </div>
+          <ol className="mt-4 space-y-3">
+            {item.tutorial.steps.map((step, index) => (
+              <li key={step} className="flex gap-3 text-sm leading-6 text-slate-200">
+                <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-violet-500 text-xs font-black text-white">
+                  {index + 1}
+                </span>
+                {step}
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        <section className="rounded-2xl border border-white/10 bg-white/[0.05] p-4">
+          <h4 className="text-sm font-black text-white">Before you try it</h4>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.1em] text-slate-400">Best for</p>
+              <p className="mt-1 text-sm leading-6 text-slate-300">{item.bestFor.join(", ")}</p>
+            </div>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.1em] text-slate-400">Tools needed</p>
+              <p className="mt-1 text-sm leading-6 text-slate-300">{item.tutorial.toolsNeeded.join(", ")}</p>
+            </div>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.1em] text-slate-400">Expected output</p>
+              <p className="mt-1 text-sm leading-6 text-slate-300">{item.tutorial.expectedOutput}</p>
+            </div>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.1em] text-slate-400">Next step</p>
+              <p className="mt-1 text-sm leading-6 text-slate-300">{item.tutorial.nextStep}</p>
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-white/10 bg-white/[0.05] p-4">
+          <h4 className="text-sm font-black text-white">Starter prompt or checklist</h4>
+          <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-300">{item.tutorial.prompt}</p>
+        </section>
+
         <section className="space-y-2">
-          <h4 className="text-sm font-black text-white">Perks</h4>
+          <h4 className="text-sm font-black text-white">Useful parts</h4>
           <div className="flex flex-wrap gap-2">
             {item.perks.map((perk) => (
               <span key={perk} className="rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-xs font-semibold text-violet-200">
@@ -491,8 +554,14 @@ function DetailsModal({
           <PerkBadges item={item} />
         </section>
         <section className="space-y-2">
-          <h4 className="text-sm font-black text-white">Limitations</h4>
+          <h4 className="text-sm font-black text-white">Common mistakes and limitations</h4>
           <ul className="space-y-2">
+            {item.tutorial.commonMistakes.map((mistake) => (
+              <li key={mistake} className="flex gap-2 text-sm leading-6 text-slate-300">
+                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-300" />
+                {mistake}
+              </li>
+            ))}
             {item.limitations.map((limitation) => (
               <li key={limitation} className="flex gap-2 text-sm leading-6 text-slate-300">
                 <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-400" />
@@ -501,19 +570,9 @@ function DetailsModal({
             ))}
           </ul>
         </section>
-        <section className="rounded-2xl border border-white/10 bg-white/[0.05] p-4">
-          <h4 className="text-sm font-black text-white">{item.miniProject.title}</h4>
-          <p className="mt-2 text-sm leading-6 text-slate-300">{item.miniProject.output}</p>
-        </section>
         <div className="grid grid-cols-1 gap-2">
           <ActionButton icon={Play} onClick={() => onTutorial(item)}>
             Open Tutorial
-          </ActionButton>
-          <ActionButton icon={Copy} onClick={() => onPromptPack(item)}>
-            Open Prompt Pack
-          </ActionButton>
-          <ActionButton icon={Rocket} onClick={() => onProject(item)}>
-            Start Mini Project
           </ActionButton>
         </div>
       </div>
@@ -594,42 +653,6 @@ function TutorialModal({
           <h4 className="text-sm font-black text-white">Next step</h4>
           <p className="mt-1 text-sm leading-6 text-slate-300">{item.tutorial.nextStep}</p>
         </section>
-      </div>
-    </ModalShell>
-  );
-}
-
-function PromptPackModal({
-  item,
-  onClose,
-  onCopy,
-}: {
-  item: AIUpdate;
-  onClose: () => void;
-  onCopy: (text: string) => void;
-}) {
-  const prompts = Object.entries(item.promptPack);
-
-  return (
-    <ModalShell title="Prompt Pack" onClose={onClose}>
-      <div className="space-y-4">
-        <p className="text-sm leading-6 text-slate-300">Six reusable prompts for turning this update into actual work.</p>
-        {prompts.map(([key, prompt]) => (
-          <section key={key} className="rounded-2xl border border-white/10 bg-white/[0.055] p-4">
-            <div className="mb-2 flex items-center justify-between gap-3">
-              <h3 className="capitalize text-sm font-black text-white">{key}</h3>
-              <button
-                type="button"
-                onClick={() => onCopy(prompt)}
-                className="inline-flex h-9 items-center gap-2 rounded-full border border-violet-400/30 bg-violet-500/10 px-3 text-xs font-bold text-violet-200 transition hover:bg-violet-500/20"
-              >
-                <Copy className="h-3.5 w-3.5" />
-                Copy
-              </button>
-            </div>
-            <p className="text-sm leading-6 text-slate-300">{prompt}</p>
-          </section>
-        ))}
       </div>
     </ModalShell>
   );
@@ -964,6 +987,10 @@ export default function AIRadarApp() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<AIUpdate[] | null>(null);
   const [searching, setSearching] = useState(false);
+  const [visibleRadarCount, setVisibleRadarCount] = useState(5);
+  const [loadingMoreRadar, setLoadingMoreRadar] = useState(false);
+  const [radarPage, setRadarPage] = useState(0);
+  const [clientId, setClientId] = useState("");
   const [savedIds, setSavedIds] = useState<string[]>([]);
   const [savedItems, setSavedItems] = useState<Record<string, AIUpdate>>({});
   const [projectStatuses, setProjectStatuses] = useState<Record<string, ProjectStatus>>({});
@@ -973,7 +1000,6 @@ export default function AIRadarApp() {
   const [toast, setToast] = useState<string | null>(null);
   const [detailsItem, setDetailsItem] = useState<AIUpdate | null>(null);
   const [tutorialItem, setTutorialItem] = useState<AIUpdate | null>(null);
-  const [promptItem, setPromptItem] = useState<AIUpdate | null>(null);
   const [compareOpen, setCompareOpen] = useState(false);
   const [askOpen, setAskOpen] = useState(false);
   const [exportData, setExportData] = useState<{ title: string; content: string } | null>(null);
@@ -985,9 +1011,39 @@ export default function AIRadarApp() {
       setProjectStatuses(readStorage<Record<string, ProjectStatus>>(storageKeys.projectStatuses, {}));
       setPromptsCopied(readStorage<number>(storageKeys.promptsCopied, 0));
       setStreakDates(readStorage<string[]>(storageKeys.streakDates, []));
+      setClientId(getOrCreateClientId());
     });
     return () => window.cancelAnimationFrame(frame);
   }, []);
+
+  useEffect(() => {
+    if (!clientId) return;
+
+    const controller = new AbortController();
+    async function loadSavedFromDatabase() {
+      try {
+        const response = await fetch(`/api/saved?clientId=${encodeURIComponent(clientId)}`, {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        if (!response.ok) return;
+
+        const data = (await response.json()) as { items?: AIUpdate[] };
+        if (!data.items?.length) return;
+
+        setSavedItems((current) => ({
+          ...current,
+          ...Object.fromEntries(data.items!.map((item) => [item.id, item])),
+        }));
+        setSavedIds((current) => Array.from(new Set([...current, ...data.items!.map((item) => item.id)])));
+      } catch {
+        // Local storage remains the fallback for saved posts.
+      }
+    }
+
+    void loadSavedFromDatabase();
+    return () => controller.abort();
+  }, [clientId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1057,8 +1113,8 @@ export default function AIRadarApp() {
   const allItems = useMemo(() => mergeItems(items, searchResults ?? [], Object.values(savedItems)), [items, savedItems, searchResults]);
   const itemMap = useMemo(() => new Map(allItems.map((item) => [item.id, item])), [allItems]);
   const filteredRadarItems = useMemo(() => filterItems(items, radarFilter), [items, radarFilter]);
+  const visibleRadarItems = filteredRadarItems.slice(0, visibleRadarCount);
   const featuredItem = filteredRadarItems.find((item) => item.isFeatured) ?? filteredRadarItems[0];
-  const feedItems = filteredRadarItems.filter((item) => item.id !== featuredItem?.id);
   const localSearchResults = useMemo(
     () => searchItems(filterItems(items, searchFilter), searchQuery),
     [items, searchFilter, searchQuery],
@@ -1079,10 +1135,64 @@ export default function AIRadarApp() {
   function showToast(message: string) { setToast(message); }
   function rememberItem(item: AIUpdate) { setSavedItems((c) => ({ ...c, [item.id]: item })); }
 
-  function saveItem(item: AIUpdate) {
+  const loadMoreRadar = useCallback(async () => {
+    if (loadingMoreRadar) return;
+
+    if (visibleRadarCount < filteredRadarItems.length) {
+      setVisibleRadarCount((count) => count + 4);
+      return;
+    }
+
+    const queries = [
+      "new AI developer tools setup tutorial for students",
+      "new open source AI tools agents workflow tutorial",
+      "latest AI model release practical developer guide",
+      "new AI research tool useful for software engineers",
+    ];
+    const query = queries[radarPage % queries.length];
+
+    setLoadingMoreRadar(true);
+    try {
+      const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`, { cache: "no-store" });
+      const data = (await response.json()) as RadarResponse;
+      setItems((current) => mergeItems(current, data.items));
+      setRadarPage((page) => page + 1);
+      setVisibleRadarCount((count) => count + 4);
+    } catch {
+      setVisibleRadarCount((count) => count + 4);
+      setToast("Could not fetch more live posts. Showing loaded posts.");
+    } finally {
+      setLoadingMoreRadar(false);
+    }
+  }, [filteredRadarItems.length, loadingMoreRadar, radarPage, visibleRadarCount]);
+
+  useEffect(() => {
+    if (activeTab !== "radar") return;
+
+    function onScroll() {
+      const remaining = document.documentElement.scrollHeight - window.scrollY - window.innerHeight;
+      if (remaining < 720) void loadMoreRadar();
+    }
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [activeTab, filteredRadarItems.length, loadingMoreRadar, loadMoreRadar, radarPage, visibleRadarCount]);
+
+  async function saveItem(item: AIUpdate) {
     rememberItem(item);
     setSavedIds((c) => (c.includes(item.id) ? c : [...c, item.id]));
-    showToast("Saved to Build");
+    showToast("Saved to Saved Radar");
+    if (!clientId) return;
+
+    try {
+      await fetch("/api/saved", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId, item }),
+      });
+    } catch {
+      showToast("Saved locally. Database save will retry when available.");
+    }
   }
 
   async function copyText(text: string, message = "Prompt copied") {
@@ -1153,6 +1263,11 @@ export default function AIRadarApp() {
   function handleSearchInput(value: string) {
     setSearchQuery(value);
     if (value.trim().length < 2) { setSearchResults(null); setSearching(false); }
+  }
+
+  function handleRadarFilter(filter: string) {
+    setRadarFilter(filter);
+    setVisibleRadarCount(5);
   }
 
   async function refreshFeed() {
@@ -1243,42 +1358,34 @@ export default function AIRadarApp() {
                 <h2 className="text-sm font-black uppercase tracking-[0.1em] text-slate-300">Radar filters</h2>
                 <span className="text-sm text-slate-400">{filteredRadarItems.length} matching updates</span>
               </div>
-              <FilterChips active={radarFilter} onSelect={setRadarFilter} />
+              <FilterChips active={radarFilter} onSelect={handleRadarFilter} />
             </div>
 
             {loadingFeed && items.length === 0 ? (
               <div className="grid min-h-[380px] place-items-center rounded-[28px] border border-white/10 bg-white/[0.05]">
                 <Loader2 className="h-9 w-9 animate-spin text-violet-300" />
               </div>
-            ) : featuredItem ? (
-              <div className="grid gap-6 xl:grid-cols-[minmax(360px,0.95fr)_minmax(0,1.55fr)]">
-                <div className="xl:sticky xl:top-28 xl:self-start">
+            ) : visibleRadarItems.length ? (
+              <div className="grid w-full gap-5">
+                {visibleRadarItems.map((item) => (
                   <RadarCard
-                    item={featuredItem}
-                    featured
-                    saved={savedIds.includes(featuredItem.id)}
+                    key={item.id}
+                    item={item}
+                    saved={savedIds.includes(item.id)}
                     onSave={saveItem}
-                    onTutorial={setTutorialItem}
-                    onPromptPack={setPromptItem}
-                    onProject={startProject}
                     onShare={shareItem}
                     onDetails={setDetailsItem}
                   />
-                </div>
-                <div className="grid gap-5 md:grid-cols-2">
-                  {feedItems.map((item) => (
-                    <RadarCard
-                      key={item.id}
-                      item={item}
-                      saved={savedIds.includes(item.id)}
-                      onSave={saveItem}
-                      onTutorial={setTutorialItem}
-                      onPromptPack={setPromptItem}
-                      onProject={startProject}
-                      onShare={shareItem}
-                      onDetails={setDetailsItem}
-                    />
-                  ))}
+                ))}
+                <div className="grid min-h-20 place-items-center rounded-[18px] border border-white/10 bg-white/[0.04] text-sm text-slate-400">
+                  {loadingMoreRadar ? (
+                    <span className="inline-flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin text-violet-300" />
+                      Loading more Radar posts
+                    </span>
+                  ) : (
+                    <span>Scroll further to fetch more live posts</span>
+                  )}
                 </div>
               </div>
             ) : (
@@ -1364,6 +1471,54 @@ export default function AIRadarApp() {
                   No matching AI updates found. Try searching for &quot;presentation&quot;, &quot;coding&quot;, &quot;video&quot;, or
                   &quot;free tools&quot;.
                 </p>
+              </div>
+            )}
+          </section>
+        ) : null}
+
+        {activeTab === "saved" ? (
+          <section className="space-y-7">
+            <header className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+              <div>
+                <p className="text-sm font-bold uppercase tracking-[0.12em] text-violet-300">Reading list</p>
+                <h1 className="mt-2 text-4xl font-black tracking-tight lg:text-5xl">Saved Radar</h1>
+                <p className="mt-3 max-w-2xl text-base leading-7 text-slate-300">
+                  Posts you saved from Radar and Search, with the original source link kept for deeper reading.
+                </p>
+              </div>
+              <span className="rounded-full border border-white/10 bg-white/[0.07] px-4 py-2 text-sm font-bold text-slate-200">
+                {savedTutorials.length} saved
+              </span>
+            </header>
+
+            {savedTutorials.length ? (
+              <div className="grid w-full gap-5">
+                {savedTutorials.map((item) => (
+                  <RadarCard
+                    key={item.id}
+                    item={item}
+                    saved
+                    onSave={saveItem}
+                    onShare={shareItem}
+                    onDetails={setDetailsItem}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-[28px] border border-white/10 bg-white/[0.06] p-8 text-center">
+                <Bookmark className="mx-auto h-9 w-9 text-violet-300" />
+                <h2 className="mt-4 text-xl font-black text-white">No saved posts yet</h2>
+                <p className="mt-2 text-sm leading-6 text-slate-300">
+                  Save useful Radar posts and they will appear here as your personal AI reading list.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("radar")}
+                  className="mt-5 inline-flex h-11 items-center gap-2 rounded-full bg-gradient-to-r from-violet-500 to-indigo-600 px-4 text-sm font-black text-white"
+                >
+                  Browse Radar
+                  <ChevronRight className="h-4 w-4" />
+                </button>
               </div>
             )}
           </section>
@@ -1510,17 +1665,11 @@ export default function AIRadarApp() {
           item={detailsItem}
           onClose={() => setDetailsItem(null)}
           onTutorial={(item) => { setDetailsItem(null); setTutorialItem(item); }}
-          onPromptPack={(item) => { setDetailsItem(null); setPromptItem(item); }}
-          onProject={(item) => { setDetailsItem(null); startProject(item); }}
         />
       ) : null}
 
       {tutorialItem ? (
         <TutorialModal item={tutorialItem} onClose={() => setTutorialItem(null)} onCopy={(text) => copyText(text, "Prompt copied")} />
-      ) : null}
-
-      {promptItem ? (
-        <PromptPackModal item={promptItem} onClose={() => setPromptItem(null)} onCopy={(text) => copyText(text, "Prompt copied")} />
       ) : null}
 
       {compareOpen ? <CompareModal items={compareItems} onClose={() => setCompareOpen(false)} /> : null}

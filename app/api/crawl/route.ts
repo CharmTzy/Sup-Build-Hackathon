@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createHash } from "crypto";
+import { getCachedRadarItems, saveRadarItems } from "@/lib/db";
 import { getCrawledRadarUpdates } from "@/lib/live";
 
 export const dynamic = "force-dynamic";
+
+function crawlCacheKey(urls: string[]) {
+  const hash = createHash("sha256").update(urls.sort().join("|")).digest("hex").slice(0, 24);
+  return `crawl:${hash}`;
+}
 
 export async function POST(request: NextRequest) {
   const body = (await request.json().catch(() => ({}))) as {
@@ -37,7 +44,22 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const cacheKey = crawlCacheKey(urls);
+  const cached = await getCachedRadarItems(cacheKey);
+
+  if (cached?.items.length) {
+    return NextResponse.json({
+      items: cached.items,
+      source: "live",
+      generatedAt: cached.updatedAt,
+      message: "Crawled Radar post served from database cache.",
+    });
+  }
+
   const items = await getCrawledRadarUpdates(urls, body.query);
+  if (items?.length) {
+    await saveRadarItems(cacheKey, items);
+  }
 
   return NextResponse.json({
     items: items ?? [],
