@@ -1103,6 +1103,7 @@ export default function AIRadarApp() {
   const [crawling, setCrawling] = useState(false);
   const [visibleRadarCount, setVisibleRadarCount] = useState(5);
   const [loadingMoreRadar, setLoadingMoreRadar] = useState(false);
+  const [loadingLiveRadar, setLoadingLiveRadar] = useState(false);
   const [radarDiscoveryPage, setRadarDiscoveryPage] = useState(0);
   const [emptyRadarFetches, setEmptyRadarFetches] = useState(0);
   const [clientId, setClientId] = useState("");
@@ -1355,12 +1356,51 @@ export default function AIRadarApp() {
   function rememberItem(item: AIUpdate) { setSavedItems((c) => ({ ...c, [item.id]: item })); }
 
   const loadMoreRadar = useCallback(async () => {
-    if (loadingMoreRadar) return;
+    if (loadingMoreRadar || loadingLiveRadar) return;
 
     if (visibleRadarCount < filteredRadarItems.length) {
       setVisibleRadarCount((count) => count + 6);
       return;
     }
+
+    setLoadingMoreRadar(true);
+    try {
+      const params = new URLSearchParams({
+        offset: String(items.length),
+        limit: "8",
+        filter: radarFilter,
+      });
+      if (clientId) params.set("clientId", clientId);
+      const response = await fetch(`/api/radar?${params.toString()}`, { cache: "no-store" });
+      const data = (await response.json()) as RadarResponse;
+      let addedCount = 0;
+      setItems((current) => {
+        const merged = mergeItems(current, data.items);
+        addedCount = merged.length - current.length;
+        return merged;
+      });
+      setFeedSource(data.source);
+      setFeedMessage(data.message);
+      setEmptyRadarFetches((count) => (addedCount <= 0 ? count + 1 : 0));
+      setVisibleRadarCount((count) => count + 6);
+    } catch {
+      setVisibleRadarCount((count) => count + 6);
+      setEmptyRadarFetches((count) => count + 1);
+    } finally {
+      setLoadingMoreRadar(false);
+    }
+  }, [
+    clientId,
+    filteredRadarItems.length,
+    items.length,
+    loadingLiveRadar,
+    loadingMoreRadar,
+    radarFilter,
+    visibleRadarCount,
+  ]);
+
+  const loadMoreLiveRadar = useCallback(async () => {
+    if (loadingLiveRadar) return;
 
     const discoveryQueries = [
       `${preferences.audience} AI tools ${preferences.interests.join(" ")} setup tutorial`,
@@ -1369,11 +1409,11 @@ export default function AIRadarApp() {
       `AI tools worth trying for ${preferences.audience} ${preferences.interests.join(" ")}`,
     ];
     const discoveryQuery = discoveryQueries[radarDiscoveryPage % discoveryQueries.length];
-    setLoadingMoreRadar(true);
+    setLoadingLiveRadar(true);
     try {
       const params = new URLSearchParams({
-        offset: String(items.length),
-        limit: "8",
+        live: "1",
+        limit: "6",
         filter: radarFilter,
         q: discoveryQuery,
       });
@@ -1390,25 +1430,21 @@ export default function AIRadarApp() {
       setFeedMessage(data.message);
       setRadarDiscoveryPage((page) => page + 1);
       setEmptyRadarFetches((count) => (addedCount <= 0 ? count + 1 : 0));
-      setVisibleRadarCount((count) => count + 6);
+      setVisibleRadarCount((count) => count + Math.max(6, data.items.length));
       if (addedCount <= 0) {
-        setToast("Retrieving more posts for your preferences...");
+        setToast("No fresh posts returned yet. Try another preference or source URL.");
       }
     } catch {
-      setVisibleRadarCount((count) => count + 6);
-      setToast("Retrieving more posts for your preferences...");
+      setToast("Could not load fresh live posts yet.");
     } finally {
-      setLoadingMoreRadar(false);
+      setLoadingLiveRadar(false);
     }
   }, [
     clientId,
-    filteredRadarItems.length,
-    items,
-    loadingMoreRadar,
+    loadingLiveRadar,
     preferences,
     radarDiscoveryPage,
     radarFilter,
-    visibleRadarCount,
   ]);
 
   useEffect(() => {
@@ -1797,17 +1833,34 @@ export default function AIRadarApp() {
                   />
                 ))}
                 <div className="grid min-h-20 place-items-center rounded-[18px] border border-white/10 bg-white/[0.04] text-sm text-slate-400">
-                  {loadingMoreRadar ? (
+                  {loadingMoreRadar || loadingLiveRadar ? (
                     <span className="inline-flex items-center gap-2">
                       <Loader2 className="h-4 w-4 animate-spin text-violet-300" />
-                      Loading more Radar posts
+                      {loadingLiveRadar ? "Crawling fresh live posts" : "Loading more stored posts"}
                     </span>
                   ) : (
-                    <span>
-                      {emptyRadarFetches > 1
-                        ? "Still retrieving more posts for your preferences..."
-                        : "Scroll further to fetch more posts"}
-                    </span>
+                    <div className="flex flex-wrap items-center justify-center gap-2 p-3">
+                      <button
+                        type="button"
+                        onClick={loadMoreRadar}
+                        className="inline-flex h-10 items-center gap-2 rounded-full border border-white/10 bg-white/[0.08] px-4 text-sm font-black text-white transition hover:border-violet-400/30 hover:bg-white/[0.12]"
+                      >
+                        <RefreshCw className="h-4 w-4" />
+                        Load more
+                      </button>
+                      {emptyRadarFetches > 0 ? (
+                        <button
+                          type="button"
+                          onClick={loadMoreLiveRadar}
+                          className="inline-flex h-10 items-center gap-2 rounded-full bg-gradient-to-r from-violet-500 to-indigo-600 px-4 text-sm font-black text-white"
+                        >
+                          <Sparkles className="h-4 w-4" />
+                          Crawl fresh posts
+                        </button>
+                      ) : (
+                        <span className="text-sm text-slate-400">Scroll or tap to continue</span>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>

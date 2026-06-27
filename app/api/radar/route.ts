@@ -29,11 +29,35 @@ export async function GET(request: NextRequest) {
   const offset = Math.max(Number(request.nextUrl.searchParams.get("offset") ?? 0) || 0, 0);
   const filter = request.nextUrl.searchParams.get("filter")?.trim() || "All";
   const query = request.nextUrl.searchParams.get("q")?.trim() || "";
+  const live = request.nextUrl.searchParams.get("live") === "1";
   const clientId = request.nextUrl.searchParams.get("clientId")?.trim() || "";
   const preferences = clientId ? await getPreferences(clientId) : null;
 
   try {
-    const storedPosts = await getRadarPosts({ limit, offset, filter, query, preferences: preferences ?? undefined });
+    if (live) {
+      const liveQuery =
+        query ||
+        `latest useful AI tools and workflows. User preference: ${preferencePrompt(preferences)}. Include setup guides, access limits, starter prompts, and launchpad next steps.`;
+      const liveItems = await getLiveRadarUpdates(liveQuery);
+
+      if (liveItems?.length) {
+        await saveRadarItems(cacheKey, liveItems);
+
+        return NextResponse.json({
+          items: liveItems,
+          source: "live",
+          generatedAt: new Date().toISOString(),
+          message: "Fresh Exa + OpenAI Radar posts loaded and saved.",
+          hasMore: true,
+        });
+      }
+    }
+
+    let storedPosts = await getRadarPosts({ limit, offset, filter, query, preferences: preferences ?? undefined });
+
+    if (!storedPosts?.length && preferences) {
+      storedPosts = await getRadarPosts({ limit, offset, filter, query });
+    }
 
     if (storedPosts?.length) {
       if (offset === 0) refreshRadarInBackground(cacheKey, preferences, query);
