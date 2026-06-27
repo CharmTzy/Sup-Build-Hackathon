@@ -4,9 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowLeft,
   BadgeCheck,
-  Bell,
   Bookmark,
-  Check,
   CheckCircle2,
   ChevronRight,
   Copy,
@@ -420,6 +418,99 @@ function RadarCard({
         </div>
       </div>
     </motion.article>
+  );
+}
+
+function LatestRadarPreview({
+  item,
+  saved,
+  onSave,
+  onTutorial,
+  onCopyPrompt,
+  onDetails,
+}: {
+  item: AIUpdate;
+  saved: boolean;
+  onSave: (item: AIUpdate) => void;
+  onTutorial: (item: AIUpdate) => void;
+  onCopyPrompt: (text: string, message?: string, postId?: string) => void;
+  onDetails: (item: AIUpdate) => void;
+}) {
+  return (
+    <section className="mt-8 rounded-[26px] border border-white/10 bg-[#0b0917]/40 p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="rounded-full bg-gradient-to-r from-violet-500 to-indigo-500 px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-white shadow-sm shadow-violet-500/30">
+            {item.category}
+          </span>
+          <span className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[11px] font-semibold text-slate-300">
+            {item.sourceType}
+          </span>
+          <span className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[11px] font-semibold text-slate-300">
+            {item.difficulty}
+          </span>
+          <span className="rounded-full border border-emerald-300/20 bg-emerald-300/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-100">
+            {accessLabel(item)}
+          </span>
+        </div>
+        <SourceLink item={item} />
+      </div>
+
+      <p className="mt-5 text-sm font-bold text-violet-200">{item.toolName}</p>
+      <h2 className="mt-2 text-2xl font-black leading-tight text-white lg:text-3xl">{item.title}</h2>
+      <p className="mt-3 max-w-4xl text-base leading-7 text-slate-200">{item.summary}</p>
+      <p className="mt-4 max-w-4xl text-sm leading-6 text-slate-300">{item.longExplanation}</p>
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-3">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+          <p className="text-xs font-bold uppercase tracking-[0.1em] text-slate-400">Actually useful</p>
+          <p className="mt-1 text-2xl font-black text-white">{item.usefulScore}/10</p>
+        </div>
+        <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+          <p className="text-xs font-bold uppercase tracking-[0.1em] text-slate-400">Student fit</p>
+          <p className="mt-1 text-2xl font-black text-white">{item.studentRelevanceScore}/10</p>
+        </div>
+        <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+          <p className="text-xs font-bold uppercase tracking-[0.1em] text-slate-400">Try time</p>
+          <p className="mt-1 text-sm font-black leading-6 text-white">{item.tutorial.estimatedTime}</p>
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.75fr)]">
+        <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+          <h3 className="text-sm font-black text-white">Quick setup path</h3>
+          <ol className="mt-3 space-y-2">
+            {item.tutorial.steps.slice(0, 3).map((step, index) => (
+              <li key={step} className="flex gap-3 text-sm leading-6 text-slate-300">
+                <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-violet-500 text-xs font-black text-white">
+                  {index + 1}
+                </span>
+                {step}
+              </li>
+            ))}
+          </ol>
+        </section>
+        <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+          <h3 className="text-sm font-black text-white">Why it matters</h3>
+          <p className="mt-2 text-sm leading-6 text-slate-300">{item.whyItMatters}</p>
+        </section>
+      </div>
+
+      <div className="mt-5 grid grid-cols-1 gap-2 sm:grid-cols-4">
+        <ActionButton icon={Eye} onClick={() => onDetails(item)}>
+          Read Details
+        </ActionButton>
+        <ActionButton icon={Play} onClick={() => onTutorial(item)}>
+          Try Tutorial
+        </ActionButton>
+        <ActionButton icon={Copy} onClick={() => onCopyPrompt(item.tutorial.prompt, "Starter prompt copied", item.id)}>
+          Copy Prompt
+        </ActionButton>
+        <ActionButton icon={Bookmark} onClick={() => onSave(item)} active={saved}>
+          {saved ? "Unsave" : "Launchpad"}
+        </ActionButton>
+      </div>
+    </section>
   );
 }
 
@@ -1070,23 +1161,6 @@ function AuthModal({
   );
 }
 
-function ProgressBar({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between text-sm">
-        <span className="font-semibold text-slate-200">{label}</span>
-        <span className="font-black text-white">{value}%</span>
-      </div>
-      <div className="h-3 overflow-hidden rounded-full bg-white/10">
-        <div
-          className="h-full rounded-full bg-gradient-to-r from-violet-400 via-blue-400 to-emerald-400"
-          style={{ width: `${value}%` }}
-        />
-      </div>
-    </div>
-  );
-}
-
 function StatTile({
   label,
   value,
@@ -1253,11 +1327,6 @@ export default function AIRadarApp() {
   const [compareOpen, setCompareOpen] = useState(false);
   const [askOpen, setAskOpen] = useState(false);
   const [exportData, setExportData] = useState<{ title: string; content: string } | null>(null);
-  const [health, setHealth] = useState<{
-    database?: { ok?: boolean };
-    exa?: { ok?: boolean };
-    openai?: { ok?: boolean };
-  } | null>(null);
   const loadingSearchPageRef = useRef(false);
   const authCheckedRef = useRef(false);
 
@@ -1523,29 +1592,17 @@ export default function AIRadarApp() {
     return () => window.clearTimeout(timeout);
   }, [toast]);
 
-  useEffect(() => {
-    let cancelled = false;
-    async function loadHealth() {
-      try {
-        const response = await fetch("/api/health", { cache: "no-store" });
-        const data = (await response.json()) as typeof health;
-        if (!cancelled) setHealth(data);
-      } catch {
-        if (!cancelled) setHealth(null);
-      }
-    }
-    void loadHealth();
-    const interval = window.setInterval(loadHealth, 60000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(interval);
-    };
-  }, []);
-
   const allItems = useMemo(() => mergeItems(items, searchResults ?? [], Object.values(savedItems)), [items, savedItems, searchResults]);
   const itemMap = useMemo(() => new Map(allItems.map((item) => [item.id, item])), [allItems]);
   const filteredRadarItems = useMemo(() => filterItems(items, radarFilter), [items, radarFilter]);
   const visibleRadarItems = filteredRadarItems.slice(0, visibleRadarCount);
+  const newestRadarItem = useMemo(() => {
+    const timestamp = (item: AIUpdate) => {
+      const time = Date.parse(item.date);
+      return Number.isFinite(time) ? time : 0;
+    };
+    return [...filteredRadarItems].sort((a, b) => timestamp(b) - timestamp(a))[0] ?? items[0];
+  }, [filteredRadarItems, items]);
   const featuredItem = filteredRadarItems.find((item) => item.isFeatured) ?? filteredRadarItems[0];
   const visibleSearchResults = useMemo(() => {
     const base = searchResults ?? [];
@@ -1558,7 +1615,6 @@ export default function AIRadarApp() {
   const buildItems = mergeItems(savedTutorials, projectItems);
   const compareItems = compareIds.map((id) => itemMap.get(id)).filter((item): item is AIUpdate => Boolean(item));
   const progress = getProgressTotals(allItems, savedIds, projectStatuses, promptsCopied);
-  const streak = streakDates.length;
   const detailAlternatives = useMemo(() => {
     if (!detailsItem) return [];
     return allItems.filter(
@@ -1995,82 +2051,43 @@ export default function AIRadarApp() {
           <>
         {activeTab === "radar" ? (
           <section className="space-y-8">
-            <div className="grid gap-5 lg:grid-cols-[minmax(0,1.55fr)_minmax(320px,0.9fr)]">
-              <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.06] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl lg:p-8">
-                <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-violet-400/60 to-transparent" />
-                <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-violet-600/10 blur-3xl" />
-                <div className="flex flex-wrap items-center gap-3">
-                  <p className="rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-sm font-bold text-violet-200">
-                    {formatDate(new Date().toISOString().slice(0, 10))}
-                  </p>
-                  <SourcePill source={feedSource} />
-                </div>
-                <h1 className="mt-6 max-w-4xl text-4xl font-black tracking-tight text-white lg:text-6xl">
-                  Today&apos;s AI Radar
-                </h1>
-                <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-300">
-                  Fresh AI updates turned into access notes, tutorials, prompts, and Launchpad next steps.
+            <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.06] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl lg:p-8">
+              <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-violet-400/60 to-transparent" />
+              <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-violet-600/10 blur-3xl" />
+              <div className="flex flex-wrap items-center gap-3">
+                <p className="rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-sm font-bold text-violet-200">
+                  {formatDate(new Date().toISOString().slice(0, 10))}
                 </p>
-                <p className="mt-4 max-w-2xl text-base font-semibold text-violet-200">
-                  Stop doomscrolling AI news. Start building with it.
-                </p>
-                <div className="mt-7 flex flex-wrap gap-3">
-                  <button
-                    type="button"
-                    onClick={refreshFeed}
-                    className="inline-flex h-12 items-center gap-2 rounded-full bg-gradient-to-r from-violet-500 to-indigo-600 px-5 text-sm font-black text-white shadow-lg shadow-violet-500/25 transition hover:from-violet-400 hover:to-indigo-500"
-                  >
-                    {loadingFeed ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                    Refresh Radar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => showToast("Daily radar notifications are ready for the Zo scheduler stretch.")}
-                    className="inline-flex h-12 items-center gap-2 rounded-full border border-white/10 bg-white/[0.07] px-5 text-sm font-bold text-slate-100 transition hover:bg-white/[0.1]"
-                  >
-                    <Bell className="h-4 w-4" />
-                    Daily briefing
-                  </button>
+                <SourcePill source={feedSource} />
+              </div>
+              <h1 className="mt-6 max-w-4xl text-4xl font-black tracking-tight text-white lg:text-6xl">
+                Today&apos;s AI Radar
+              </h1>
+              <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-300">
+                The newest crawled AI update, rewritten into a practical student-friendly walkthrough.
+              </p>
+              {newestRadarItem ? (
+                <LatestRadarPreview
+                  item={newestRadarItem}
+                  saved={savedIds.includes(newestRadarItem.id)}
+                  onSave={toggleSavedItem}
+                  onTutorial={setTutorialItem}
+                  onCopyPrompt={copyText}
+                  onDetails={setDetailsItem}
+                />
+              ) : (
+                <div className="mt-8 grid min-h-48 place-items-center rounded-[26px] border border-white/10 bg-[#0b0917]/40 text-sm font-bold text-slate-300">
+                  {loadingFeed ? (
+                    <span className="inline-flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin text-violet-300" />
+                      Loading latest crawl
+                    </span>
+                  ) : (
+                    feedMessage
+                  )}
                 </div>
-              </header>
-
-              <aside className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
-                <StatTile label="Updates loaded" value={filteredRadarItems.length || items.length} icon={Radar} tone="violet" />
-                <StatTile label="Saved tools" value={progress.savedTools} icon={Bookmark} tone="blue" />
-                <StatTile label="Completed projects" value={progress.completedProjects} icon={Trophy} tone="emerald" />
-                <div className="rounded-3xl border border-white/10 bg-white/[0.065] p-4 backdrop-blur-xl sm:col-span-2 lg:col-span-1">
-                  <div className="flex items-center justify-between gap-3">
-                    <h2 className="text-sm font-black uppercase tracking-[0.1em] text-white">Live pipeline</h2>
-                    <button
-                      type="button"
-                      title="Refresh feed"
-                      onClick={refreshFeed}
-                      className="grid h-9 w-9 place-items-center rounded-full border border-white/10 bg-white/[0.07] text-slate-200 transition hover:border-violet-400/30 hover:text-violet-200"
-                    >
-                      {loadingFeed ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                    </button>
-                  </div>
-                  <p className="mt-3 text-sm leading-6 text-slate-300">{feedMessage}</p>
-                </div>
-                <div className="rounded-3xl border border-white/10 bg-white/[0.065] p-4 backdrop-blur-xl sm:col-span-2 lg:col-span-1">
-                  <h2 className="text-sm font-black uppercase tracking-[0.1em] text-white">System status</h2>
-                  <div className="mt-3 grid gap-2">
-                    {[
-                      ["Database", health?.database?.ok],
-                      ["Exa", health?.exa?.ok],
-                      ["OpenAI", health?.openai?.ok],
-                    ].map(([label, ok]) => (
-                      <div key={String(label)} className="flex items-center justify-between rounded-xl border border-white/10 bg-[#0b0917]/40 px-3 py-2 text-sm">
-                        <span className="font-bold text-slate-200">{label}</span>
-                        <span className={cx("rounded-full px-2 py-1 text-[11px] font-black", ok ? "bg-emerald-300 text-slate-950" : "bg-amber-300 text-slate-950")}>
-                          {ok ? "Ready" : "Check"}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </aside>
-            </div>
+              )}
+            </header>
 
             <div className="rounded-[28px] border border-white/10 bg-white/[0.055] p-4 backdrop-blur-xl">
               <div className="mb-4 rounded-2xl border border-violet-400/20 bg-violet-500/10 p-4">
@@ -2379,73 +2396,7 @@ export default function AIRadarApp() {
               )}
             </div>
 
-            <div className="grid gap-6 lg:grid-cols-[380px_minmax(0,1fr)]">
-              <aside className="space-y-5">
-                <section className="rounded-[28px] border border-white/10 bg-white/[0.07] p-5 backdrop-blur-xl">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <h2 className="text-xl font-black text-white">Portfolio Progress</h2>
-                      <p className="mt-1 text-sm text-slate-400">Every saved update can become a visible artifact.</p>
-                    </div>
-                    <div className="grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-600 text-white shadow-lg shadow-violet-500/25">
-                      <Trophy className="h-7 w-7" />
-                    </div>
-                  </div>
-                  <div className="mt-5 space-y-4">
-                    <ProgressBar label="Portfolio readiness" value={progress.portfolioScore} />
-                    <ProgressBar label="Weekly progress" value={progress.weeklyProgress} />
-                  </div>
-                  <div className="mt-5 flex flex-wrap gap-2">
-                    <IconBadge icon={Zap}>{streak || 0} day streak</IconBadge>
-                    <IconBadge icon={Check}>{progress.activeProjects} active projects</IconBadge>
-                  </div>
-                </section>
-
-                <section className="rounded-[28px] border border-white/10 bg-white/[0.06] p-5">
-                  <h2 className="text-lg font-black text-white">Saved Tutorials</h2>
-                  {savedTutorials.length ? (
-                    <div className="mt-4 space-y-3">
-                      {savedTutorials.map((item) => (
-                        <article key={item.id} className="rounded-2xl border border-white/10 bg-[#0b0917]/40 p-3">
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <p className="text-xs font-bold uppercase tracking-[0.1em] text-violet-300">{item.category}</p>
-                              <h3 className="mt-1 text-sm font-black leading-tight text-white">{item.tutorial.title}</h3>
-                              <p className="mt-2 text-xs text-slate-400">
-                                {item.difficulty} · {item.tutorial.estimatedTime}
-                              </p>
-                            </div>
-                            <span className="rounded-full bg-white/[0.08] px-2 py-1 text-[11px] font-bold text-slate-200">
-                              {projectStatuses[item.id] ?? "Saved"}
-                            </span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => setTutorialItem(item)}
-                            className="mt-3 inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.07] text-xs font-bold text-white transition hover:border-violet-400/30 hover:bg-white/[0.1]"
-                          >
-                            Continue
-                            <ChevronRight className="h-4 w-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => void unsaveItem(item)}
-                            className="mt-2 inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl border border-red-300/20 bg-red-500/10 text-xs font-bold text-red-100 transition hover:bg-red-500/20"
-                          >
-                            Remove from Launchpad
-                          </button>
-                        </article>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="mt-4 rounded-2xl border border-white/10 bg-[#0b0917]/40 p-4 text-sm leading-6 text-slate-300">
-                      Save a Radar card or Search result and it will appear here.
-                    </p>
-                  )}
-                </section>
-              </aside>
-
-              <section className="space-y-4">
+            <section className="space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <h2 className="text-xl font-black text-white">Mini Projects</h2>
@@ -2482,7 +2433,6 @@ export default function AIRadarApp() {
                   </article>
                 )}
               </section>
-            </div>
           </section>
         ) : null}
 
