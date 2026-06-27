@@ -538,8 +538,8 @@ async function transformWithOpenAIOrExaFallback(results: ExaResult[], query: str
           "OpenAI scoring",
         );
       } catch (error) {
-        console.warn("OpenAI score analysis skipped; using generated scores:", error);
-        return normalized;
+        console.warn("OpenAI score analysis skipped; recalibrating generated scores:", error);
+        return normalized.map(rescoreAIUpdate);
       }
     }
   } catch (error) {
@@ -576,7 +576,7 @@ export async function transformWithOpenAI(
           role: "user",
           content: JSON.stringify({
             task:
-              "Create AI Radar reading posts from these Exa search results. The post must be useful even if the user never opens the original link. Use longExplanation for 'what is the news' with concrete context. Use whyItMatters for practical student/software-engineer relevance. Use tutorial for a detailed setup or first-try guide. Include limitations, but do not make limitations the main content. Avoid invented pricing; use Unknown when unsure.",
+              "Create AI Radar reading posts from these Exa search results. The post must be useful even if the user never opens the original link. Use longExplanation for 'what is the news' with concrete context. Use whyItMatters for practical student/software-engineer relevance. Use tutorial for a detailed setup or first-try guide. Include limitations, but do not make limitations the main content. Avoid invented pricing; use Unknown when unsure. Score strictly: most usefulScore and studentRelevanceScore values should be 5-8. Use 9 rarely and 10 only for exceptional items with clear access, immediate practical use, and a concrete student/builder workflow.",
             query,
             results: results.map(compactExaResult),
           }),

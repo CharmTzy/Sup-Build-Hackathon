@@ -83,9 +83,12 @@ async function scoreBatch(items) {
                 "Fit for students and early builders. Reward free/open-source access, beginner-friendly setup, learning value, portfolio projects, and low prerequisites. Penalize paid-only, API-only, enterprise, waitlists, or advanced research without a practical path.",
             },
             scoringRules: [
+              "Be skeptical. Never reward a post just because it is about AI, a model launch, or a famous company.",
               "Most good items should land between 5 and 8.",
               "Use 9 only for unusually practical, accessible, timely items.",
-              "Use 10 only when the item is exceptional on that metric.",
+              "Use 10 only when the item is exceptional on that metric and has clear access, a concrete tutorial path, and immediate student/builder value.",
+              "If access or pricing is unknown, studentRelevanceScore should usually be 7 or lower.",
+              "If enrichment was skipped, pricing must be checked, or the post is mostly an article summary, usefulScore and studentRelevanceScore should usually be 7 or lower.",
               "API setup should usually lower student fit unless the tutorial is beginner-friendly and free/cheap.",
               "Research or funding news may be interesting but should not automatically be highly useful.",
             ],
