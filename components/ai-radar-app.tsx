@@ -156,7 +156,7 @@ function SourcePill({ source }: { source: "live" }) {
   return (
     <span
       title={`Source: ${source}`}
-      className="inline-flex items-center gap-1 rounded-full border border-violet-400/40 bg-violet-400/15 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-violet-200"
+      className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-violet-400/40 bg-violet-400/15 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-violet-200"
     >
       <span className="h-1.5 w-1.5 rounded-full bg-violet-400" />
       Live / Stored
@@ -1213,16 +1213,16 @@ function WebsiteNav({
 }) {
   return (
     <header className="sticky top-0 z-30 border-b border-white/10 bg-[#0b0917]/80 backdrop-blur-2xl">
-      <div className="mx-auto flex min-h-20 w-full max-w-7xl flex-col gap-4 px-5 py-4 lg:flex-row lg:items-center lg:justify-between lg:px-8">
-        <button type="button" onClick={() => onTabChange("radar")} className="flex w-fit items-center gap-3 text-left">
+      <div className="mx-auto grid min-h-20 w-full max-w-[1800px] gap-4 px-5 py-4 lg:grid-cols-[minmax(210px,280px)_minmax(0,1fr)_auto] lg:items-center lg:gap-5 lg:px-8">
+        <button type="button" onClick={() => onTabChange("radar")} className="flex min-w-0 w-fit items-center gap-3 text-left lg:w-auto">
           <RadarLogo />
-          <div>
+          <div className="min-w-0">
             <p className="text-xl font-black leading-none text-white">AI Radar</p>
-            <p className="mt-1 text-sm text-slate-400">Turn AI news into proof of work</p>
+            <p className="mt-1 text-sm text-slate-400 lg:max-w-44 xl:max-w-none">Turn AI news into proof of work</p>
           </div>
         </button>
 
-        <nav className="flex flex-wrap items-center gap-2">
+        <nav className="scrollbar-none flex min-w-0 flex-nowrap items-center gap-2 overflow-x-auto">
           {tabItems.map((tab) => {
             const Icon = tab.icon;
             const active = activeTab === tab.id;
@@ -1233,7 +1233,7 @@ function WebsiteNav({
                 type="button"
                 onClick={() => onTabChange(tab.id)}
                 className={cx(
-                  "inline-flex h-11 items-center gap-2 rounded-full border px-4 text-sm font-black transition",
+                  "inline-flex h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-full border px-3 text-xs font-black transition xl:h-11 xl:px-4 xl:text-sm",
                   active
                     ? "border-violet-400/50 bg-violet-500 text-white shadow-lg shadow-violet-500/20"
                     : "border-white/10 bg-white/[0.06] text-slate-200 hover:border-white/20 hover:bg-white/[0.1]",
@@ -1246,12 +1246,12 @@ function WebsiteNav({
           })}
         </nav>
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex shrink-0 flex-nowrap items-center gap-2 xl:gap-3">
           <SourcePill source={feedSource} />
           {authUser ? (
-            <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] py-1 pl-3 pr-1">
+            <div className="flex shrink-0 items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] py-1 pl-3 pr-1">
               <UserRound className="h-4 w-4 text-violet-200" />
-              <span className="max-w-40 truncate text-sm font-bold text-slate-200">{authUser.name || authUser.email}</span>
+              <span className="max-w-24 truncate text-sm font-bold text-slate-200 xl:max-w-40">{authUser.name || authUser.email}</span>
               <button
                 type="button"
                 title="Log out"
@@ -1265,7 +1265,7 @@ function WebsiteNav({
             <button
               type="button"
               onClick={onLogin}
-              className="inline-flex h-11 items-center gap-2 rounded-full border border-white/10 bg-white/[0.07] px-4 text-sm font-black text-white transition hover:border-violet-400/30 hover:bg-white/[0.1]"
+              className="inline-flex h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-full border border-white/10 bg-white/[0.07] px-4 text-sm font-black text-white transition hover:border-violet-400/30 hover:bg-white/[0.1]"
             >
               <LogIn className="h-4 w-4" />
               Log in
@@ -1274,7 +1274,7 @@ function WebsiteNav({
           <button
             type="button"
             onClick={onAsk}
-            className="inline-flex h-11 items-center gap-2 rounded-full bg-gradient-to-r from-blue-500 to-indigo-600 px-4 text-sm font-black text-white shadow-lg shadow-indigo-500/25 transition hover:from-blue-400 hover:to-indigo-500"
+            className="inline-flex h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-full bg-gradient-to-r from-blue-500 to-indigo-600 px-4 text-sm font-black text-white shadow-lg shadow-indigo-500/25 transition hover:from-blue-400 hover:to-indigo-500"
           >
             <MessageCircle className="h-4 w-4" />
             Ask Radar
