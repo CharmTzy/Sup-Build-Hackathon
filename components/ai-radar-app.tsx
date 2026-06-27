@@ -14,6 +14,8 @@ import {
   FileText,
   GitCompare,
   Hammer,
+  LogIn,
+  LogOut,
   Loader2,
   MessageCircle,
   Play,
@@ -26,12 +28,13 @@ import {
   Sparkles,
   Star,
   Trophy,
+  UserRound,
   X,
   Zap,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
-import type { AIUpdate, ProjectStatus, RadarResponse, TabId, UserPreferences } from "@/lib/types";
+import type { AIUpdate, ProjectStatus, RadarResponse, TabId, UserAccount, UserPreferences } from "@/lib/types";
 import {
   buildGithubReadme,
   buildLinkedInPost,
@@ -69,6 +72,13 @@ const defaultPreferences: UserPreferences = {
 };
 
 const SEARCH_PAGE_SIZE = 24;
+
+type AuthMode = "login" | "register";
+type AuthForm = {
+  email: string;
+  password: string;
+  name: string;
+};
 
 const preferenceInterestOptions = [
   "coding",
@@ -968,6 +978,98 @@ function AskModal({
   );
 }
 
+function AuthModal({
+  mode,
+  error,
+  loading,
+  onClose,
+  onModeChange,
+  onSubmit,
+}: {
+  mode: AuthMode;
+  error: string;
+  loading: boolean;
+  onClose: () => void;
+  onModeChange: (mode: AuthMode) => void;
+  onSubmit: (form: AuthForm) => Promise<void>;
+}) {
+  const [form, setForm] = useState<AuthForm>({ email: "", password: "", name: "" });
+  const isRegister = mode === "register";
+
+  return (
+    <ModalShell title={isRegister ? "Create Account" : "Log In"} onClose={onClose}>
+      <form
+        className="space-y-4"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void onSubmit(form);
+        }}
+      >
+        {isRegister ? (
+          <label className="block space-y-2">
+            <span className="text-sm font-bold text-slate-300">Name</span>
+            <input
+              value={form.name}
+              onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
+              className="h-12 w-full rounded-2xl border border-white/10 bg-[#0b0917]/70 px-4 text-sm font-bold text-white outline-none placeholder:text-slate-500"
+              placeholder="Your name"
+              autoComplete="name"
+            />
+          </label>
+        ) : null}
+
+        <label className="block space-y-2">
+          <span className="text-sm font-bold text-slate-300">Email</span>
+          <input
+            type="email"
+            value={form.email}
+            onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
+            className="h-12 w-full rounded-2xl border border-white/10 bg-[#0b0917]/70 px-4 text-sm font-bold text-white outline-none placeholder:text-slate-500"
+            placeholder="you@example.com"
+            autoComplete="email"
+            required
+          />
+        </label>
+
+        <label className="block space-y-2">
+          <span className="text-sm font-bold text-slate-300">Password</span>
+          <input
+            type="password"
+            value={form.password}
+            onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))}
+            className="h-12 w-full rounded-2xl border border-white/10 bg-[#0b0917]/70 px-4 text-sm font-bold text-white outline-none placeholder:text-slate-500"
+            placeholder={isRegister ? "At least 8 characters" : "Your password"}
+            autoComplete={isRegister ? "new-password" : "current-password"}
+            required
+            minLength={isRegister ? 8 : undefined}
+          />
+        </label>
+
+        {error ? (
+          <p className="rounded-2xl border border-red-300/20 bg-red-500/10 px-4 py-3 text-sm font-bold text-red-100">{error}</p>
+        ) : null}
+
+        <button
+          type="submit"
+          disabled={loading}
+          className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-500 to-indigo-600 px-4 text-sm font-black text-white shadow-lg shadow-violet-500/25 disabled:cursor-wait disabled:opacity-70"
+        >
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : isRegister ? <UserRound className="h-4 w-4" /> : <LogIn className="h-4 w-4" />}
+          {isRegister ? "Create account" : "Log in"}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onModeChange(isRegister ? "login" : "register")}
+          className="inline-flex h-10 w-full items-center justify-center rounded-2xl border border-white/10 bg-white/[0.06] px-4 text-sm font-bold text-slate-200 transition hover:bg-white/[0.1]"
+        >
+          {isRegister ? "Use an existing account" : "Create a new account"}
+        </button>
+      </form>
+    </ModalShell>
+  );
+}
+
 function ProgressBar({ label, value }: { label: string; value: number }) {
   return (
     <div className="space-y-2">
@@ -1023,11 +1125,17 @@ function WebsiteNav({
   onTabChange,
   onAsk,
   feedSource,
+  authUser,
+  onLogin,
+  onLogout,
 }: {
   activeTab: TabId;
   onTabChange: (tab: TabId) => void;
   onAsk: () => void;
   feedSource: "live";
+  authUser: UserAccount | null;
+  onLogin: () => void;
+  onLogout: () => void;
 }) {
   return (
     <header className="sticky top-0 z-30 border-b border-white/10 bg-[#0b0917]/80 backdrop-blur-2xl">
@@ -1066,6 +1174,29 @@ function WebsiteNav({
 
         <div className="flex flex-wrap items-center gap-3">
           <SourcePill source={feedSource} />
+          {authUser ? (
+            <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] py-1 pl-3 pr-1">
+              <UserRound className="h-4 w-4 text-violet-200" />
+              <span className="max-w-40 truncate text-sm font-bold text-slate-200">{authUser.name || authUser.email}</span>
+              <button
+                type="button"
+                title="Log out"
+                onClick={onLogout}
+                className="grid h-9 w-9 place-items-center rounded-full border border-white/10 bg-white/[0.07] text-slate-200 transition hover:border-red-300/30 hover:bg-red-500/10 hover:text-red-100"
+              >
+                <LogOut className="h-4 w-4" />
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={onLogin}
+              className="inline-flex h-11 items-center gap-2 rounded-full border border-white/10 bg-white/[0.07] px-4 text-sm font-black text-white transition hover:border-violet-400/30 hover:bg-white/[0.1]"
+            >
+              <LogIn className="h-4 w-4" />
+              Log in
+            </button>
+          )}
           <button
             type="button"
             onClick={onAsk}
@@ -1104,6 +1235,11 @@ export default function AIRadarApp() {
   const [radarDiscoveryPage, setRadarDiscoveryPage] = useState(0);
   const [emptyRadarFetches, setEmptyRadarFetches] = useState(0);
   const [clientId, setClientId] = useState("");
+  const [authUser, setAuthUser] = useState<UserAccount | null>(null);
+  const [authOpen, setAuthOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<AuthMode>("login");
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState("");
   const [preferences, setPreferences] = useState<UserPreferences>(defaultPreferences);
   const [savedIds, setSavedIds] = useState<string[]>([]);
   const [savedItems, setSavedItems] = useState<Record<string, AIUpdate>>({});
@@ -1123,6 +1259,7 @@ export default function AIRadarApp() {
     openai?: { ok?: boolean };
   } | null>(null);
   const loadingSearchPageRef = useRef(false);
+  const authCheckedRef = useRef(false);
 
   const handleTabChange = useCallback((tab: TabId) => {
     setDetailsItem(null);
@@ -1146,6 +1283,31 @@ export default function AIRadarApp() {
     });
     return () => window.cancelAnimationFrame(frame);
   }, []);
+
+  useEffect(() => {
+    if (!clientId || authCheckedRef.current) return;
+    authCheckedRef.current = true;
+
+    let cancelled = false;
+    async function loadAccountSession() {
+      try {
+        const response = await fetch("/api/auth/me", { cache: "no-store" });
+        if (!response.ok) return;
+        const data = (await response.json()) as { user?: UserAccount | null };
+        if (!cancelled && data.user) {
+          setAuthUser(data.user);
+          setClientId(data.user.clientId);
+        }
+      } catch {
+        // Anonymous local mode remains available.
+      }
+    }
+
+    void loadAccountSession();
+    return () => {
+      cancelled = true;
+    };
+  }, [clientId]);
 
   useEffect(() => {
     if (!clientId) return;
@@ -1762,9 +1924,61 @@ export default function AIRadarApp() {
     setSearchRefreshTick((tick) => tick + 1);
   }
 
+  function openAuth(mode: AuthMode = "login") {
+    setAuthMode(mode);
+    setAuthError("");
+    setAuthOpen(true);
+  }
+
+  async function submitAuth(form: AuthForm) {
+    setAuthLoading(true);
+    setAuthError("");
+    try {
+      const response = await fetch(`/api/auth/${authMode}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...form,
+          clientId,
+        }),
+      });
+      const data = (await response.json()) as { user?: UserAccount | null; message?: string };
+      if (!response.ok || !data.user) {
+        throw new Error(data.message || "Account request failed.");
+      }
+
+      setAuthUser(data.user);
+      setClientId(data.user.clientId);
+      setAuthOpen(false);
+      showToast(authMode === "register" ? "Account created and Launchpad connected" : "Logged in and Launchpad connected");
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : "Account request failed.");
+    } finally {
+      setAuthLoading(false);
+    }
+  }
+
+  async function logout() {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } finally {
+      setAuthUser(null);
+      setClientId(getOrCreateClientId());
+      showToast("Logged out");
+    }
+  }
+
   return (
     <div className="min-h-dvh overflow-x-hidden bg-[radial-gradient(ellipse_at_15%_0%,rgba(139,111,255,0.22),transparent_32%),radial-gradient(ellipse_at_85%_10%,rgba(79,123,255,0.16),transparent_34%),radial-gradient(ellipse_at_50%_80%,rgba(99,71,220,0.10),transparent_40%),linear-gradient(160deg,#0b0917_0%,#0d0a1e_50%,#0f0c26_100%)] text-white">
-      <WebsiteNav activeTab={activeTab} onTabChange={handleTabChange} onAsk={() => setAskOpen(true)} feedSource={feedSource} />
+      <WebsiteNav
+        activeTab={activeTab}
+        onTabChange={handleTabChange}
+        onAsk={() => setAskOpen(true)}
+        feedSource={feedSource}
+        authUser={authUser}
+        onLogin={() => openAuth("login")}
+        onLogout={() => void logout()}
+      />
 
       <main className="mx-auto w-full max-w-7xl px-5 py-8 lg:px-8 lg:py-10">
         {detailsItem ? (
@@ -2139,6 +2353,32 @@ export default function AIRadarApp() {
               <StatTile label="Saved tools" value={progress.savedTools} icon={Bookmark} tone="amber" />
             </div>
 
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-[24px] border border-white/10 bg-white/[0.055] px-5 py-4">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-violet-500/20 text-violet-100">
+                  <UserRound className="h-5 w-5" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-black text-white">
+                    {authUser ? `Launchpad connected to ${authUser.name || authUser.email}` : "Launchpad is saved on this browser"}
+                  </p>
+                  <p className="mt-1 text-xs font-semibold text-slate-400">
+                    {authUser ? "Your saved tools and project statuses sync through Neon." : "Log in to sync this Launchpad across devices."}
+                  </p>
+                </div>
+              </div>
+              {authUser ? null : (
+                <button
+                  type="button"
+                  onClick={() => openAuth("login")}
+                  className="inline-flex h-10 items-center gap-2 rounded-full bg-gradient-to-r from-violet-500 to-indigo-600 px-4 text-sm font-black text-white"
+                >
+                  <LogIn className="h-4 w-4" />
+                  Log in
+                </button>
+              )}
+            </div>
+
             <div className="grid gap-6 lg:grid-cols-[380px_minmax(0,1fr)]">
               <aside className="space-y-5">
                 <section className="rounded-[28px] border border-white/10 bg-white/[0.07] p-5 backdrop-blur-xl">
@@ -2349,6 +2589,20 @@ export default function AIRadarApp() {
       </main>
 
       <Toast message={toast} />
+
+      {authOpen ? (
+        <AuthModal
+          mode={authMode}
+          error={authError}
+          loading={authLoading}
+          onClose={() => setAuthOpen(false)}
+          onModeChange={(nextMode) => {
+            setAuthMode(nextMode);
+            setAuthError("");
+          }}
+          onSubmit={submitAuth}
+        />
+      ) : null}
 
       {tutorialItem ? (
         <TutorialModal item={tutorialItem} onClose={() => setTutorialItem(null)} onCopy={(text) => copyText(text, "Prompt copied", tutorialItem.id)} />

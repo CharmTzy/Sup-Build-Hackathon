@@ -93,6 +93,14 @@ export interface UserPreferences {
   access: "Any" | "Free" | "Freemium" | "Trial" | "Paid" | "Open Source";
 }
 
+export interface UserAccount {
+  id: string;
+  email: string;
+  name: string;
+  clientId: string;
+  createdAt: string;
+}
+
 export interface RadarResponse {
   items: AIUpdate[];
   source: "live";

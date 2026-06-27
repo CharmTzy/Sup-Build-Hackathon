@@ -1,15 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { deleteSavedItemForClient, getSavedItems, saveItemForClient } from "@/lib/db";
+import { resolveClientId } from "@/lib/request-client";
 import type { AIUpdate } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
-function getClientId(request: NextRequest, body?: { clientId?: string }) {
-  return body?.clientId?.trim() || request.nextUrl.searchParams.get("clientId")?.trim() || "";
-}
-
 export async function GET(request: NextRequest) {
-  const clientId = getClientId(request);
+  const clientId = await resolveClientId(request);
   if (!clientId) {
     return NextResponse.json({ items: [], source: "live", message: "clientId is required." }, { status: 400 });
   }
@@ -27,7 +24,7 @@ export async function POST(request: NextRequest) {
     clientId?: string;
     item?: AIUpdate;
   };
-  const clientId = getClientId(request, body);
+  const clientId = await resolveClientId(request, body);
 
   if (!clientId || !body.item?.id) {
     return NextResponse.json({ saved: false, message: "clientId and item are required." }, { status: 400 });
@@ -45,7 +42,7 @@ export async function DELETE(request: NextRequest) {
     clientId?: string;
     postId?: string;
   };
-  const clientId = getClientId(request, body);
+  const clientId = await resolveClientId(request, body);
   const postId = body.postId?.trim() || request.nextUrl.searchParams.get("postId")?.trim() || "";
 
   if (!clientId || !postId) {

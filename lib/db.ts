@@ -1,7 +1,7 @@
 import { neon } from "@neondatabase/serverless";
 import { Pool } from "pg";
 import { rescoreAIUpdate } from "@/lib/scoring";
-import type { AIUpdate, ProjectStatus, UserPreferences } from "@/lib/types";
+import type { AIUpdate, ProjectStatus, UserAccount, UserPreferences } from "@/lib/types";
 
 const CACHE_TTL_MS = 1000 * 60 * 60 * 6;
 
@@ -15,6 +15,10 @@ export interface PostQueryOptions {
   filter?: string;
   query?: string;
   preferences?: UserPreferences;
+}
+
+export interface UserAccountRecord extends UserAccount {
+  passwordHash: string;
 }
 
 let client: Queryable | null = null;
@@ -123,6 +127,22 @@ async function ensureSchema(db: Queryable) {
   `);
 
   await db.query(`
+    CREATE TABLE IF NOT EXISTS user_accounts (
+      id TEXT PRIMARY KEY,
+      email TEXT NOT NULL UNIQUE,
+      name TEXT,
+      password_hash TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS user_accounts_email_idx
+    ON user_accounts (email)
+  `);
+
+  await db.query(`
     CREATE TABLE IF NOT EXISTS saved_items (
       client_id TEXT NOT NULL,
       post_id TEXT NOT NULL REFERENCES radar_posts(id) ON DELETE CASCADE,
@@ -225,6 +245,37 @@ function rowToAIUpdate(row: Record<string, unknown>): AIUpdate {
     isSaved: false,
     isFeatured: Boolean((row.raw_post as AIUpdate | undefined)?.isFeatured),
   });
+}
+
+function accountClientId(userId: string) {
+  return `account:${userId}`;
+}
+
+function rowToUserAccount(row: Record<string, unknown>): UserAccountRecord {
+  const id = String(row.id);
+
+  return {
+    id,
+    email: String(row.email),
+    name: String(row.name ?? ""),
+    passwordHash: String(row.password_hash),
+    clientId: accountClientId(id),
+    createdAt: new Date(row.created_at as string | Date).toISOString(),
+  };
+}
+
+export function normalizeEmail(email: string) {
+  return email.trim().toLowerCase();
+}
+
+export function publicUser(user: UserAccountRecord): UserAccount {
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    clientId: user.clientId,
+    createdAt: user.createdAt,
+  };
 }
 
 async function upsertRadarPost(db: Queryable, item: AIUpdate) {
@@ -492,6 +543,109 @@ export async function saveRadarItems(cacheKey: string, items: AIUpdate[]) {
   return true;
 }
 
+export async function createUserAccount({
+  id,
+  email,
+  name,
+  passwordHash,
+}: {
+  id: string;
+  email: string;
+  name?: string;
+  passwordHash: string;
+}) {
+  const db = getClient();
+  if (!db) return null;
+
+  await ensureSchema(db);
+  const rows = await db.query<Record<string, unknown>>(
+    `
+    INSERT INTO user_accounts (id, email, name, password_hash, updated_at)
+    VALUES ($1, $2, $3, $4, NOW())
+    RETURNING *
+  `,
+    [id, normalizeEmail(email), name?.trim() || null, passwordHash],
+  );
+
+  return rows[0] ? rowToUserAccount(rows[0]) : null;
+}
+
+export async function getUserAccountByEmail(email: string) {
+  const db = getClient();
+  if (!db) return null;
+
+  await ensureSchema(db);
+  const rows = await db.query<Record<string, unknown>>(
+    `
+    SELECT *
+    FROM user_accounts
+    WHERE email = $1
+    LIMIT 1
+  `,
+    [normalizeEmail(email)],
+  );
+
+  return rows[0] ? rowToUserAccount(rows[0]) : null;
+}
+
+export async function getUserAccountById(id: string) {
+  const db = getClient();
+  if (!db || !id) return null;
+
+  await ensureSchema(db);
+  const rows = await db.query<Record<string, unknown>>(
+    `
+    SELECT *
+    FROM user_accounts
+    WHERE id = $1
+    LIMIT 1
+  `,
+    [id],
+  );
+
+  return rows[0] ? rowToUserAccount(rows[0]) : null;
+}
+
+export async function migrateClientDataToAccount(fromClientId: string | undefined, toClientId: string) {
+  const db = getClient();
+  const sourceClientId = fromClientId?.trim();
+  if (!db || !sourceClientId || !toClientId || sourceClientId === toClientId) return false;
+
+  await ensureSchema(db);
+  await db.query(
+    `
+    INSERT INTO saved_items (client_id, post_id, created_at)
+    SELECT $2, post_id, created_at
+    FROM saved_items
+    WHERE client_id = $1
+    ON CONFLICT (client_id, post_id) DO NOTHING
+  `,
+    [sourceClientId, toClientId],
+  );
+  await db.query(
+    `
+    INSERT INTO launchpad_items (client_id, post_id, status, notes, created_at, updated_at)
+    SELECT $2, post_id, status, notes, created_at, updated_at
+    FROM launchpad_items
+    WHERE client_id = $1
+    ON CONFLICT (client_id, post_id) DO NOTHING
+  `,
+    [sourceClientId, toClientId],
+  );
+  await db.query(
+    `
+    INSERT INTO user_preferences (client_id, preferences, created_at, updated_at)
+    SELECT $2, preferences, created_at, updated_at
+    FROM user_preferences
+    WHERE client_id = $1
+    ON CONFLICT (client_id) DO NOTHING
+  `,
+    [sourceClientId, toClientId],
+  );
+
+  return true;
+}
+
 export async function getSavedItems(clientId: string) {
   const db = getClient();
   if (!db || !clientId) return null;
@@ -676,6 +830,7 @@ export async function getSchemaHealth() {
 
   await ensureSchema(db);
   const tables = [
+    "user_accounts",
     "radar_posts",
     "radar_feed_items",
     "saved_items",

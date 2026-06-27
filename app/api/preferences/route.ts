@@ -1,15 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPreferences, savePreferences } from "@/lib/db";
+import { resolveClientId } from "@/lib/request-client";
 import type { UserPreferences } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
-function clientIdFrom(request: NextRequest, body?: { clientId?: string }) {
-  return body?.clientId?.trim() || request.nextUrl.searchParams.get("clientId")?.trim() || "";
-}
-
 export async function GET(request: NextRequest) {
-  const clientId = clientIdFrom(request);
+  const clientId = await resolveClientId(request);
   if (!clientId) {
     return NextResponse.json({ preferences: null, saved: false, message: "clientId is required." }, { status: 400 });
   }
@@ -27,7 +24,7 @@ export async function POST(request: NextRequest) {
     clientId?: string;
     preferences?: UserPreferences;
   };
-  const clientId = clientIdFrom(request, body);
+  const clientId = await resolveClientId(request, body);
 
   if (!clientId || !body.preferences) {
     return NextResponse.json({ saved: false, message: "clientId and preferences are required." }, { status: 400 });

@@ -1,15 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getLaunchpadStatuses, setLaunchpadStatus } from "@/lib/db";
+import { resolveClientId } from "@/lib/request-client";
 import type { ProjectStatus } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
-function clientIdFrom(request: NextRequest, body?: { clientId?: string }) {
-  return body?.clientId?.trim() || request.nextUrl.searchParams.get("clientId")?.trim() || "";
-}
-
 export async function GET(request: NextRequest) {
-  const clientId = clientIdFrom(request);
+  const clientId = await resolveClientId(request);
   if (!clientId) {
     return NextResponse.json({ statuses: {}, saved: false, message: "clientId is required." }, { status: 400 });
   }
@@ -28,7 +25,7 @@ export async function POST(request: NextRequest) {
     postId?: string;
     status?: ProjectStatus;
   };
-  const clientId = clientIdFrom(request, body);
+  const clientId = await resolveClientId(request, body);
   const postId = body.postId?.trim() || "";
 
   if (!clientId || !postId || !body.status) {

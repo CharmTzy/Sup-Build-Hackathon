@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPreferences, getRadarPosts, saveRadarItems } from "@/lib/db";
 import { getLiveRadarUpdates } from "@/lib/live";
+import { resolveClientId } from "@/lib/request-client";
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +40,7 @@ function refreshSearchInBackground(query: string, preferenceText: string) {
 
 export async function GET(request: NextRequest) {
   const query = request.nextUrl.searchParams.get("q")?.trim() ?? "";
-  const clientId = request.nextUrl.searchParams.get("clientId")?.trim() || "";
+  const clientId = await resolveClientId(request);
   const { limit, offset } = getSearchPaging(request);
   const preferences = clientId ? await getPreferences(clientId) : null;
 

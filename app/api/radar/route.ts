@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCachedRadarItems, getPreferences, getRadarPosts, saveRadarItems } from "@/lib/db";
 import { getLiveRadarUpdates } from "@/lib/live";
+import { resolveClientId } from "@/lib/request-client";
 import type { UserPreferences } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -30,7 +31,7 @@ export async function GET(request: NextRequest) {
   const filter = request.nextUrl.searchParams.get("filter")?.trim() || "All";
   const query = request.nextUrl.searchParams.get("q")?.trim() || "";
   const live = request.nextUrl.searchParams.get("live") === "1";
-  const clientId = request.nextUrl.searchParams.get("clientId")?.trim() || "";
+  const clientId = await resolveClientId(request);
   const preferences = clientId ? await getPreferences(clientId) : null;
 
   try {

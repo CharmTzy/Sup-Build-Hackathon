@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { saveGeneratedExport } from "@/lib/db";
+import { resolveClientId } from "@/lib/request-client";
 
 export const dynamic = "force-dynamic";
 
@@ -10,8 +11,9 @@ export async function POST(request: NextRequest) {
     exportType?: string;
     content?: string;
   };
+  const clientId = await resolveClientId(request, body);
 
-  if (!body.clientId?.trim() || !body.exportType?.trim() || !body.content) {
+  if (!clientId || !body.exportType?.trim() || !body.content) {
     return NextResponse.json(
       { saved: false, message: "clientId, exportType, and content are required." },
       { status: 400 },
@@ -19,7 +21,7 @@ export async function POST(request: NextRequest) {
   }
 
   const saved = await saveGeneratedExport(
-    body.clientId.trim(),
+    clientId,
     body.postId?.trim(),
     body.exportType.trim(),
     body.content,
