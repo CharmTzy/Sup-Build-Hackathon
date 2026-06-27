@@ -1,6 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
+import Image from "next/image";
 import {
   ArrowLeft,
   BadgeCheck,
@@ -293,6 +294,28 @@ function ActionButton({
   );
 }
 
+function CoverImage({ src, alt, className }: { src?: string; alt: string; className?: string }) {
+  const [hidden, setHidden] = useState(false);
+
+  if (!src || hidden) return null;
+
+  return (
+    <figure className={cx("relative aspect-video overflow-hidden rounded-2xl border border-white/10 bg-[#0b0917]/40", className)}>
+      <Image
+        src={src}
+        alt={alt}
+        fill
+        loading="lazy"
+        sizes="(max-width: 768px) 100vw, 960px"
+        unoptimized
+        referrerPolicy="no-referrer"
+        onError={() => setHidden(true)}
+        className="object-cover"
+      />
+    </figure>
+  );
+}
+
 function RadarCard({
   item,
   saved,
@@ -342,6 +365,8 @@ function RadarCard({
           <h3 className="mt-2 text-2xl font-black leading-tight text-white">{item.title}</h3>
           <p className="mt-3 text-base leading-7 text-slate-200">{item.summary}</p>
         </div>
+
+        <CoverImage src={item.coverImageUrl} alt={`${item.title} cover image`} />
 
         <section className="rounded-2xl border border-white/10 bg-[#0b0917]/35 p-4">
           <div className="mb-2 flex items-center gap-2 text-sm font-black text-white">
@@ -459,6 +484,7 @@ function LatestRadarPreview({
       <p className="mt-5 text-sm font-bold text-violet-200">{item.toolName}</p>
       <h2 className="mt-2 text-2xl font-black leading-tight text-white lg:text-3xl">{item.title}</h2>
       <p className="mt-3 max-w-4xl text-base leading-7 text-slate-200">{item.summary}</p>
+      <CoverImage src={item.coverImageUrl} alt={`${item.title} cover image`} className="mt-5" />
       <p className="mt-4 max-w-4xl text-sm leading-6 text-slate-300">{item.longExplanation}</p>
 
       <div className="mt-5 grid gap-3 sm:grid-cols-3">

@@ -249,6 +249,7 @@ function rowToAIUpdate(row: Record<string, unknown>): AIUpdate {
     miniProject: (row.mini_project ?? {}) as AIUpdate["miniProject"],
     sourceType: row.source_type as AIUpdate["sourceType"],
     sourceUrl: row.source_url ? String(row.source_url) : undefined,
+    coverImageUrl: rawPost?.coverImageUrl,
     isSaved: false,
     isFeatured: Boolean(rawPost?.isFeatured),
   };

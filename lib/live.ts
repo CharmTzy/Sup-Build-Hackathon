@@ -6,6 +6,13 @@ export interface ExaResult {
   id?: string;
   title?: string;
   url?: string;
+  image?: string;
+  favicon?: string;
+  imageLinks?: string[];
+  extras?: {
+    imageLinks?: string[];
+    links?: string[];
+  };
   publishedDate?: string;
   author?: string;
   text?: string;
@@ -239,6 +246,9 @@ export async function searchExa(query: string, numResults = 8) {
           query:
             "Summarize the practical AI update, tool, announcement, or research result for students and early builders.",
         },
+        extras: {
+          imageLinks: 1,
+        },
       },
     }),
   });
@@ -269,6 +279,9 @@ export async function crawlExaUrls(urls: string[]) {
         query:
           "Summarize the practical AI product update, model release, research result, pricing change, or tutorial value for students and early builders.",
       },
+      extras: {
+        imageLinks: 1,
+      },
     }),
   });
 
@@ -287,10 +300,36 @@ function compactExaResult(result: ExaResult, index: number) {
     url: result.url,
     publishedDate: result.publishedDate,
     author: result.author,
+    image: result.image,
+    imageLinks: result.extras?.imageLinks ?? result.imageLinks,
     summary: result.summary,
     highlights: (result.highlights ?? []).slice(0, 3),
     text: result.text?.slice(0, 900),
   };
+}
+
+function normalizeImageUrl(url: string | undefined) {
+  if (!url) return undefined;
+
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "https:") return undefined;
+    return parsed.toString();
+  } catch {
+    return undefined;
+  }
+}
+
+function coverImageFromResult(result: ExaResult | undefined) {
+  if (!result) return undefined;
+
+  return [
+    result.image,
+    ...(result.extras?.imageLinks ?? []),
+    ...(result.imageLinks ?? []),
+  ]
+    .map(normalizeImageUrl)
+    .find(Boolean);
 }
 
 function textPreview(input: string | undefined, maxLength: number) {
@@ -445,6 +484,7 @@ function exaResultToLiveItem(result: ExaResult, index: number, query: string): A
     isSaved: false,
     isFeatured: index === 0,
     sourceUrl: result.url,
+    coverImageUrl: coverImageFromResult(result),
   });
 }
 
@@ -600,6 +640,7 @@ function normalizeGeneratedItem(item: GeneratedLiveItem, result: ExaResult | und
     isSaved: false,
     isFeatured: index === 0,
     sourceUrl: result?.url,
+    coverImageUrl: coverImageFromResult(result),
   };
 }
 
