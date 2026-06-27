@@ -4,6 +4,29 @@ import { getLiveRadarUpdates } from "@/lib/live";
 
 export const dynamic = "force-dynamic";
 
+const DEFAULT_SEARCH_LIMIT = 24;
+const MAX_SEARCH_LIMIT = 50;
+
+function getSearchPaging(request: NextRequest) {
+  const rawLimit = request.nextUrl.searchParams.get("limit")?.trim().toLowerCase();
+  const rawOffset = request.nextUrl.searchParams.get("offset");
+
+  if (rawLimit === "all") {
+    return {
+      limit: null as number | null,
+      offset: 0,
+    };
+  }
+
+  const parsedLimit = Number(rawLimit ?? DEFAULT_SEARCH_LIMIT);
+  const parsedOffset = Number(rawOffset ?? 0);
+
+  return {
+    limit: Math.min(Math.max(Number.isFinite(parsedLimit) && parsedLimit > 0 ? parsedLimit : DEFAULT_SEARCH_LIMIT, 1), MAX_SEARCH_LIMIT),
+    offset: Math.max(Number.isFinite(parsedOffset) ? parsedOffset : 0, 0),
+  };
+}
+
 function refreshSearchInBackground(query: string, preferenceText: string) {
   if (!process.env.EXA_API_KEY || !query.trim()) return;
 
@@ -17,6 +40,7 @@ function refreshSearchInBackground(query: string, preferenceText: string) {
 export async function GET(request: NextRequest) {
   const query = request.nextUrl.searchParams.get("q")?.trim() ?? "";
   const clientId = request.nextUrl.searchParams.get("clientId")?.trim() || "";
+  const { limit, offset } = getSearchPaging(request);
   const preferences = clientId ? await getPreferences(clientId) : null;
 
   const preferenceText = preferences
@@ -26,20 +50,27 @@ export async function GET(request: NextRequest) {
   try {
     const stored = await getRadarPosts({
       query: query || undefined,
-      limit: null,
+      limit,
+      offset,
     });
 
-    if (query.length >= 2) refreshSearchInBackground(query, preferenceText);
+    if (query.length >= 2 && offset === 0) refreshSearchInBackground(query, preferenceText);
 
     if (stored?.length) {
+      const hasMore = typeof limit === "number" && stored.length === limit;
+
       return NextResponse.json({
         items: stored,
         source: "live",
         generatedAt: new Date().toISOString(),
         message: query
-          ? "Search results loaded from all stored Radar posts. Live Exa refresh runs in the background."
-          : "Showing all stored Radar posts and crawled sources.",
-        hasMore: false,
+          ? hasMore
+            ? "Showing stored matches while more live results load in the background."
+            : "Showing all stored matches. Live Exa refresh runs in the background."
+          : hasMore
+            ? "Showing recent stored Radar posts while the full live archive loads."
+            : "Showing all stored Radar posts and crawled sources.",
+        hasMore,
       });
     }
   } catch (error) {

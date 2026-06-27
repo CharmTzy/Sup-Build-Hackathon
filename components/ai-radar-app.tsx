@@ -28,7 +28,7 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import type { AIUpdate, ProjectStatus, RadarResponse, TabId, UserPreferences } from "@/lib/types";
 import {
@@ -66,6 +66,8 @@ const defaultPreferences: UserPreferences = {
   difficulty: "Any",
   access: "Any",
 };
+
+const SEARCH_PAGE_SIZE = 24;
 
 const preferenceInterestOptions = [
   "coding",
@@ -1096,6 +1098,8 @@ export default function AIRadarApp() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<AIUpdate[] | null>(null);
   const [searching, setSearching] = useState(false);
+  const [searchHasMore, setSearchHasMore] = useState(false);
+  const [loadingMoreSearch, setLoadingMoreSearch] = useState(false);
   const [searchMessage, setSearchMessage] = useState("Search stored Radar posts; live crawling refreshes in the background.");
   const [searchRefreshTick, setSearchRefreshTick] = useState(0);
   const [searchAutoRefreshes, setSearchAutoRefreshes] = useState(0);
@@ -1125,6 +1129,7 @@ export default function AIRadarApp() {
     exa?: { ok?: boolean };
     openai?: { ok?: boolean };
   } | null>(null);
+  const loadingSearchPageRef = useRef(false);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -1256,12 +1261,17 @@ export default function AIRadarApp() {
 
   useEffect(() => {
     const query = searchQuery.trim();
+    if (activeTab !== "search" && !query) return;
 
     const controller = new AbortController();
     const timeout = window.setTimeout(async () => {
       setSearching(true);
+      setSearchHasMore(false);
       try {
-        const params = new URLSearchParams();
+        const params = new URLSearchParams({
+          limit: String(SEARCH_PAGE_SIZE),
+          offset: "0",
+        });
         if (query) params.set("q", query);
         if (clientId) params.set("clientId", clientId);
         const response = await fetch(`/api/search?${params.toString()}`, {
@@ -1271,9 +1281,11 @@ export default function AIRadarApp() {
         const data = (await response.json()) as RadarResponse;
         setSearchResults(data.items);
         setSearchMessage(data.message);
+        setSearchHasMore(Boolean(data.hasMore));
       } catch {
         if (!controller.signal.aborted) {
           setSearchResults([]);
+          setSearchHasMore(false);
           setSearchMessage("Could not reach live search. Try refreshing Search again.");
         }
       } finally {
@@ -1285,7 +1297,47 @@ export default function AIRadarApp() {
       controller.abort();
       window.clearTimeout(timeout);
     };
-  }, [clientId, items, searchQuery, searchRefreshTick]);
+  }, [activeTab, clientId, searchQuery, searchRefreshTick]);
+
+  useEffect(() => {
+    if (!searchHasMore || searching || !searchResults?.length || loadingSearchPageRef.current) return;
+
+    const query = searchQuery.trim();
+    let cancelled = false;
+    const timeout = window.setTimeout(async () => {
+      loadingSearchPageRef.current = true;
+      setLoadingMoreSearch(true);
+      try {
+        const params = new URLSearchParams({
+          limit: String(SEARCH_PAGE_SIZE),
+          offset: String(searchResults.length),
+        });
+        if (query) params.set("q", query);
+        if (clientId) params.set("clientId", clientId);
+
+        const response = await fetch(`/api/search?${params.toString()}`, { cache: "no-store" });
+        const data = (await response.json()) as RadarResponse;
+        if (cancelled) return;
+
+        setSearchResults((current) => mergeItems(current ?? [], data.items));
+        setSearchHasMore(Boolean(data.hasMore && data.items.length > 0));
+        setSearchMessage(data.message);
+      } catch {
+        if (!cancelled) {
+          setSearchHasMore(false);
+          setSearchMessage("Search loaded the first results. Try Refresh live search for more.");
+        }
+      } finally {
+        loadingSearchPageRef.current = false;
+        if (!cancelled) setLoadingMoreSearch(false);
+      }
+    }, 180);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
+  }, [clientId, searchHasMore, searchQuery, searchResults, searching]);
 
   useEffect(() => {
     const query = searchQuery.trim();
@@ -1599,6 +1651,10 @@ export default function AIRadarApp() {
 
   function handleSearchInput(value: string) {
     setSearchQuery(value);
+    setSearchResults(null);
+    setSearchHasMore(false);
+    loadingSearchPageRef.current = false;
+    setLoadingMoreSearch(false);
     setSearchAutoRefreshes(0);
   }
 
@@ -1696,6 +1752,9 @@ export default function AIRadarApp() {
 
   function refreshSearch() {
     setSearchResults(null);
+    setSearchHasMore(false);
+    loadingSearchPageRef.current = false;
+    setLoadingMoreSearch(false);
     setSearchAutoRefreshes(0);
     setSearchRefreshTick((tick) => tick + 1);
   }
@@ -1934,21 +1993,38 @@ export default function AIRadarApp() {
               <p className="text-sm text-slate-500">{searchMessage}</p>
             </div>
 
-            {visibleSearchResults.length ? (
-              <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-                {visibleSearchResults.map((item) => (
-                  <SearchResultCard
-                    key={item.id}
-                    item={item}
-                    saved={savedIds.includes(item.id)}
-                    compared={compareIds.includes(item.id)}
-                    onDetails={setDetailsItem}
-                    onTutorial={setTutorialItem}
-                    onSave={toggleSavedItem}
-                    onCompare={toggleCompare}
-                  />
-                ))}
+            {searching && !searchResults ? (
+              <div className="grid min-h-[320px] place-items-center rounded-[28px] border border-white/10 bg-white/[0.06]">
+                <span className="inline-flex items-center gap-2 text-sm font-bold text-slate-300">
+                  <Loader2 className="h-5 w-5 animate-spin text-violet-300" />
+                  Loading live search
+                </span>
               </div>
+            ) : visibleSearchResults.length ? (
+              <>
+                <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+                  {visibleSearchResults.map((item) => (
+                    <SearchResultCard
+                      key={item.id}
+                      item={item}
+                      saved={savedIds.includes(item.id)}
+                      compared={compareIds.includes(item.id)}
+                      onDetails={setDetailsItem}
+                      onTutorial={setTutorialItem}
+                      onSave={toggleSavedItem}
+                      onCompare={toggleCompare}
+                    />
+                  ))}
+                </div>
+                {loadingMoreSearch ? (
+                  <div className="grid min-h-16 place-items-center rounded-[18px] border border-white/10 bg-white/[0.04] text-sm font-bold text-slate-300">
+                    <span className="inline-flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin text-violet-300" />
+                      Loading more live results
+                    </span>
+                  </div>
+                ) : null}
+              </>
             ) : (
               <div className="rounded-[28px] border border-white/10 bg-white/[0.06] p-10 text-center">
                 <Search className="mx-auto h-9 w-9 text-violet-300" />
