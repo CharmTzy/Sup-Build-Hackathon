@@ -83,6 +83,7 @@ export interface RadarResponse {
   source: "live" | "mock";
   generatedAt: string;
   message: string;
+  hasMore?: boolean;
 }
 
 export interface AskResponse {

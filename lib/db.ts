@@ -10,7 +10,6 @@ interface Queryable {
 
 let client: Queryable | null = null;
 let schemaReady = false;
-let warnedLocalDatabaseUrl = false;
 
 function isLocalDatabaseUrl(databaseUrl: string) {
   try {
@@ -27,17 +26,6 @@ function getClient() {
 
   if (!client) {
     if (isLocalDatabaseUrl(databaseUrl)) {
-      if (process.env.ALLOW_LOCAL_DATABASE_URL !== "true") {
-        if (!warnedLocalDatabaseUrl) {
-          console.warn(
-            "DATABASE_URL points to localhost. Skipping database connection. Set DATABASE_URL to a Neon connection string, or set ALLOW_LOCAL_DATABASE_URL=true to use local Postgres.",
-          );
-          warnedLocalDatabaseUrl = true;
-        }
-
-        return null;
-      }
-
       const pool = new Pool({ connectionString: databaseUrl });
       client = {
         async query<T = Record<string, unknown>>(sql: string, params: unknown[] = []) {
@@ -71,17 +59,11 @@ export function getDatabaseConfigurationStatus() {
     };
   }
 
-  if (isLocalDatabaseUrl(databaseUrl) && process.env.ALLOW_LOCAL_DATABASE_URL !== "true") {
-    return {
-      configured: false,
-      message:
-        "DATABASE_URL points to localhost and is ignored. Use a Neon connection string, or set ALLOW_LOCAL_DATABASE_URL=true for local Postgres.",
-    };
-  }
-
   return {
     configured: true,
-    message: "DATABASE_URL is configured.",
+    message: isLocalDatabaseUrl(databaseUrl)
+      ? "Local Postgres DATABASE_URL is configured."
+      : "DATABASE_URL is configured.",
   };
 }
 
@@ -329,6 +311,25 @@ export async function getCachedRadarItems(cacheKey: string) {
     items: row.items,
     updatedAt: new Date(row.updated_at).toISOString(),
   };
+}
+
+export async function getRadarPosts(limit = 10, offset = 0) {
+  const db = getClient();
+  if (!db) return null;
+
+  await ensureSchema(db);
+
+  const rows = await db.query<Record<string, unknown>>(
+    `
+    SELECT *
+    FROM radar_posts
+    ORDER BY updated_at DESC, created_at DESC
+    LIMIT $1 OFFSET $2
+  `,
+    [limit, offset],
+  );
+
+  return rows.map(rowToAIUpdate);
 }
 
 export async function saveRadarItems(cacheKey: string, items: AIUpdate[]) {

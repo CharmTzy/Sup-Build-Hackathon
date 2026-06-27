@@ -7,8 +7,9 @@ AI Radar is a mobile-first Next.js app for a hackathon MVP: live AI news becomes
 ## Features
 
 - Radar feed with category chips and one readable tutorial/news post per row, with source links, save/share actions, and scroll-based loading.
+- Radar URL composer that crawls a source link and turns it into an actionable post.
 - Search page with popular searches, real-time results, filters, details modal, save, tutorial, and compare flow.
-- Build page with saved tutorials, mini project progress, completion tracking, prompt-copy counts, streaks, LinkedIn post export, and GitHub README export.
+- Launchpad page with saved tutorials, mini project progress, completion tracking, prompt-copy counts, streaks, LinkedIn post export, and GitHub README export.
 - Saved page for bookmarked Radar/Search posts.
 - Ask Radar assistant with OpenAI-backed answers when configured and local fallback answers when offline.
 - Server-side Exa + OpenAI integration with mock fallback so the demo still works without API keys.
@@ -51,7 +52,7 @@ Without `DATABASE_URL`, live Exa/OpenAI still works but does not persist generat
 
 With keys, these route handlers become live:
 
-- `app/api/radar/route.ts`: Exa news search -> OpenAI structured AI Radar cards -> optional Neon cache
+- `app/api/radar/route.ts`: instant database/mock response -> background Exa news search -> OpenAI structured AI Radar posts -> database cache
 - `app/api/search/route.ts`: Exa semantic search -> OpenAI structured result cards
 - `app/api/ask/route.ts`: OpenAI answer synthesis over the current Radar dataset
 - `app/api/crawl/route.ts`: Exa URL crawl/content extraction -> OpenAI structured AI Radar cards
@@ -213,10 +214,11 @@ Finished:
 - URL crawl route for Exa contents plus OpenAI transformation.
 - Saved tab and single-column Radar reading feed.
 - Database-backed saved posts linked to generated Radar posts.
+- Non-blocking Radar API that avoids request-time Exa/OpenAI timeouts.
+- URL-to-Radar composer on the Radar page.
 
 Still missing:
 
-- A visible UI control for submitting crawl URLs.
 - Database persistence for project progress, prompt-copy events, and exports.
 - Scheduled refresh job for daily Radar generation.
 - Auth or anonymous session IDs for multi-device persistence.

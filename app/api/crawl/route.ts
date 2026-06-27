@@ -59,6 +59,7 @@ export async function POST(request: NextRequest) {
   const items = await getCrawledRadarUpdates(urls, body.query);
   if (items?.length) {
     await saveRadarItems(cacheKey, items);
+    await saveRadarItems("daily-radar", items);
   }
 
   return NextResponse.json({

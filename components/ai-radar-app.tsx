@@ -57,7 +57,7 @@ const tabItems: Array<{ id: TabId; label: string; icon: LucideIcon }> = [
   { id: "radar", label: "Radar", icon: Radar },
   { id: "search", label: "Search", icon: Search },
   { id: "saved", label: "Saved", icon: Bookmark },
-  { id: "build", label: "Build", icon: Hammer },
+  { id: "build", label: "Launchpad", icon: Hammer },
 ];
 
 function readStorage<T>(key: string, fallback: T): T {
@@ -141,6 +141,15 @@ function SourceLink({ item }: { item: AIUpdate }) {
       <ChevronRight className="h-3.5 w-3.5 shrink-0" />
     </a>
   );
+}
+
+function accessLabel(item: AIUpdate) {
+  if (item.access.waitlistRequired) return "Waitlist";
+  if (item.access.paidOnly) return "Paid / Pro-only";
+  if (item.access.freeTier) return "Free tier";
+  if (item.access.trialCredits === "Yes") return "Trial credits";
+  if (item.access.apiAvailable && !item.access.noCodeFriendly) return "API setup";
+  return "Access unclear";
 }
 
 function Toast({ message }: { message: string | null }) {
@@ -251,12 +260,16 @@ function RadarCard({
   item,
   saved,
   onSave,
+  onTutorial,
+  onCopyPrompt,
   onShare,
   onDetails,
 }: {
   item: AIUpdate;
   saved: boolean;
   onSave: (item: AIUpdate) => void;
+  onTutorial: (item: AIUpdate) => void;
+  onCopyPrompt: (text: string, message?: string) => void;
   onShare: (item: AIUpdate) => void;
   onDetails: (item: AIUpdate) => void;
 }) {
@@ -279,6 +292,9 @@ function RadarCard({
             </span>
             <span className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[11px] font-semibold text-slate-300">
               {item.difficulty}
+            </span>
+            <span className="rounded-full border border-emerald-300/20 bg-emerald-300/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-100">
+              {accessLabel(item)}
             </span>
           </div>
           <SourceLink item={item} />
@@ -309,6 +325,21 @@ function RadarCard({
           </div>
         </section>
 
+        <section className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+            <p className="text-xs font-bold uppercase tracking-[0.1em] text-slate-400">Actually useful</p>
+            <p className="mt-1 text-2xl font-black text-white">{item.usefulScore}/10</p>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+            <p className="text-xs font-bold uppercase tracking-[0.1em] text-slate-400">Student fit</p>
+            <p className="mt-1 text-2xl font-black text-white">{item.studentRelevanceScore}/10</p>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+            <p className="text-xs font-bold uppercase tracking-[0.1em] text-slate-400">Access</p>
+            <p className="mt-1 text-sm font-black leading-6 text-white">{accessLabel(item)}</p>
+          </div>
+        </section>
+
         <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
           <h4 className="text-sm font-black text-white">Quick setup path</h4>
           <ol className="mt-3 space-y-2">
@@ -331,12 +362,18 @@ function RadarCard({
           ))}
         </div>
 
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-5">
           <ActionButton icon={Eye} onClick={() => onDetails(item)}>
             Read Details
           </ActionButton>
+          <ActionButton icon={Play} onClick={() => onTutorial(item)}>
+            Try Tutorial
+          </ActionButton>
+          <ActionButton icon={Copy} onClick={() => onCopyPrompt(item.tutorial.prompt, "Starter prompt copied")}>
+            Copy Prompt
+          </ActionButton>
           <ActionButton icon={Bookmark} onClick={() => onSave(item)} active={saved}>
-            {saved ? "Saved" : "Save"}
+            {saved ? "Saved" : "Launchpad"}
           </ActionButton>
           <ActionButton icon={Share2} onClick={() => onShare(item)}>
             Share
@@ -987,9 +1024,11 @@ export default function AIRadarApp() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<AIUpdate[] | null>(null);
   const [searching, setSearching] = useState(false);
+  const [crawlUrl, setCrawlUrl] = useState("");
+  const [crawling, setCrawling] = useState(false);
   const [visibleRadarCount, setVisibleRadarCount] = useState(5);
   const [loadingMoreRadar, setLoadingMoreRadar] = useState(false);
-  const [radarPage, setRadarPage] = useState(0);
+  const [hasMoreRadar, setHasMoreRadar] = useState(true);
   const [clientId, setClientId] = useState("");
   const [savedIds, setSavedIds] = useState<string[]>([]);
   const [savedItems, setSavedItems] = useState<Record<string, AIUpdate>>({});
@@ -1056,6 +1095,7 @@ export default function AIRadarApp() {
           setItems(data.items);
           setFeedSource(data.source);
           setFeedMessage(data.message);
+          setHasMoreRadar(data.hasMore ?? data.items.length >= 8);
         }
       } catch {
         if (!cancelled) {
@@ -1139,32 +1179,28 @@ export default function AIRadarApp() {
     if (loadingMoreRadar) return;
 
     if (visibleRadarCount < filteredRadarItems.length) {
-      setVisibleRadarCount((count) => count + 4);
+      setVisibleRadarCount((count) => count + 6);
       return;
     }
 
-    const queries = [
-      "new AI developer tools setup tutorial for students",
-      "new open source AI tools agents workflow tutorial",
-      "latest AI model release practical developer guide",
-      "new AI research tool useful for software engineers",
-    ];
-    const query = queries[radarPage % queries.length];
+    if (!hasMoreRadar) return;
 
     setLoadingMoreRadar(true);
     try {
-      const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`, { cache: "no-store" });
+      const response = await fetch(`/api/radar?offset=${items.length}&limit=8`, { cache: "no-store" });
       const data = (await response.json()) as RadarResponse;
       setItems((current) => mergeItems(current, data.items));
-      setRadarPage((page) => page + 1);
-      setVisibleRadarCount((count) => count + 4);
+      setFeedSource(data.source);
+      setFeedMessage(data.message);
+      setHasMoreRadar(data.hasMore ?? data.items.length >= 8);
+      setVisibleRadarCount((count) => count + 6);
     } catch {
-      setVisibleRadarCount((count) => count + 4);
+      setVisibleRadarCount((count) => count + 6);
       setToast("Could not fetch more live posts. Showing loaded posts.");
     } finally {
       setLoadingMoreRadar(false);
     }
-  }, [filteredRadarItems.length, loadingMoreRadar, radarPage, visibleRadarCount]);
+  }, [filteredRadarItems.length, hasMoreRadar, items.length, loadingMoreRadar, visibleRadarCount]);
 
   useEffect(() => {
     if (activeTab !== "radar") return;
@@ -1176,7 +1212,7 @@ export default function AIRadarApp() {
 
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
-  }, [activeTab, filteredRadarItems.length, loadingMoreRadar, loadMoreRadar, radarPage, visibleRadarCount]);
+  }, [activeTab, filteredRadarItems.length, loadingMoreRadar, loadMoreRadar, visibleRadarCount]);
 
   async function saveItem(item: AIUpdate) {
     rememberItem(item);
@@ -1278,11 +1314,49 @@ export default function AIRadarApp() {
       setItems(data.items);
       setFeedSource(data.source);
       setFeedMessage(data.message);
+      setHasMoreRadar(data.hasMore ?? data.items.length >= 8);
+      setVisibleRadarCount(5);
       showToast(data.source === "live" ? "Live radar refreshed" : "Demo radar refreshed");
     } catch {
       showToast("Feed refresh failed");
     } finally {
       setLoadingFeed(false);
+    }
+  }
+
+  async function generateFromUrl() {
+    const url = crawlUrl.trim();
+    if (!url) {
+      showToast("Paste a source URL first");
+      return;
+    }
+
+    setCrawling(true);
+    try {
+      const response = await fetch("/api/crawl", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url,
+          query:
+            "Explain this AI update for students, software engineers, creators, and builders. Include what changed, access situation, setup steps, starter prompt, and what to try first.",
+        }),
+      });
+      const data = (await response.json()) as RadarResponse;
+      if (data.items.length) {
+        setItems((current) => mergeItems(data.items, current));
+        setFeedSource(data.source);
+        setFeedMessage(data.message);
+        setCrawlUrl("");
+        setVisibleRadarCount((count) => Math.max(count, 6));
+        showToast("Generated Radar post from source URL");
+      } else {
+        showToast(data.message || "No usable crawl content found");
+      }
+    } catch {
+      showToast("Could not generate from that URL");
+    } finally {
+      setCrawling(false);
     }
   }
 
@@ -1307,7 +1381,7 @@ export default function AIRadarApp() {
                   Today&apos;s AI Radar
                 </h1>
                 <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-300">
-                  Fresh AI updates turned into tutorials, prompt packs, perks, and mini projects.
+                  Fresh AI updates turned into access notes, tutorials, prompts, and Launchpad next steps.
                 </p>
                 <p className="mt-4 max-w-2xl text-base font-semibold text-violet-200">
                   Stop doomscrolling AI news. Start building with it.
@@ -1354,6 +1428,28 @@ export default function AIRadarApp() {
             </div>
 
             <div className="rounded-[28px] border border-white/10 bg-white/[0.055] p-4 backdrop-blur-xl">
+              <div className="mb-4 rounded-2xl border border-violet-400/20 bg-violet-500/10 p-4">
+                <div className="grid gap-3 lg:grid-cols-[1fr_auto]">
+                  <label className="flex min-h-12 items-center gap-3 rounded-xl border border-white/10 bg-[#0b0917]/50 px-4">
+                    <Search className="h-4 w-4 shrink-0 text-violet-200" />
+                    <input
+                      value={crawlUrl}
+                      onChange={(event) => setCrawlUrl(event.target.value)}
+                      placeholder="Paste an AI update/tool URL to turn it into a Radar post"
+                      className="min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-slate-500"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={generateFromUrl}
+                    disabled={crawling}
+                    className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-violet-500 to-indigo-600 px-4 text-sm font-black text-white disabled:cursor-wait disabled:opacity-70"
+                  >
+                    {crawling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                    Generate from URL
+                  </button>
+                </div>
+              </div>
               <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                 <h2 className="text-sm font-black uppercase tracking-[0.1em] text-slate-300">Radar filters</h2>
                 <span className="text-sm text-slate-400">{filteredRadarItems.length} matching updates</span>
@@ -1373,6 +1469,8 @@ export default function AIRadarApp() {
                     item={item}
                     saved={savedIds.includes(item.id)}
                     onSave={saveItem}
+                    onTutorial={setTutorialItem}
+                    onCopyPrompt={copyText}
                     onShare={shareItem}
                     onDetails={setDetailsItem}
                   />
@@ -1384,7 +1482,7 @@ export default function AIRadarApp() {
                       Loading more Radar posts
                     </span>
                   ) : (
-                    <span>Scroll further to fetch more live posts</span>
+                    <span>{hasMoreRadar ? "Scroll further to fetch more posts" : "You are caught up for now"}</span>
                   )}
                 </div>
               </div>
@@ -1499,6 +1597,8 @@ export default function AIRadarApp() {
                     item={item}
                     saved
                     onSave={saveItem}
+                    onTutorial={setTutorialItem}
+                    onCopyPrompt={copyText}
                     onShare={shareItem}
                     onDetails={setDetailsItem}
                   />
@@ -1528,9 +1628,11 @@ export default function AIRadarApp() {
           <section className="space-y-7">
             <header className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
               <div>
-                <p className="text-sm font-bold uppercase tracking-[0.12em] text-violet-300">Portfolio lab</p>
-                <h1 className="mt-2 text-4xl font-black tracking-tight lg:text-5xl">Build</h1>
-                <p className="mt-3 max-w-2xl text-base leading-7 text-slate-300">Turn AI updates into proof of work.</p>
+                <p className="text-sm font-bold uppercase tracking-[0.12em] text-violet-300">Tool access hub</p>
+                <h1 className="mt-2 text-4xl font-black tracking-tight lg:text-5xl">Launchpad</h1>
+                <p className="mt-3 max-w-2xl text-base leading-7 text-slate-300">
+                  Track saved AI tools, access limits, setup steps, and what to try next.
+                </p>
               </div>
               <div className="flex flex-wrap gap-2">
                 <button
