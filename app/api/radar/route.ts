@@ -10,11 +10,12 @@ function preferencePrompt(preferences: UserPreferences | null) {
   return `${preferences.audience}; interests: ${preferences.interests.join(", ") || "general AI"}; preferred access: ${preferences.access}; difficulty: ${preferences.difficulty}`;
 }
 
-function refreshRadarInBackground(cacheKey: string, preferences: UserPreferences | null) {
+function refreshRadarInBackground(cacheKey: string, preferences: UserPreferences | null, query?: string) {
   if (!process.env.EXA_API_KEY || !process.env.OPENAI_API_KEY) return;
 
   getLiveRadarUpdates(
-    `latest AI tools and updates worth trying. User preference: ${preferencePrompt(preferences)}. Include setup guides, access limits, starter prompts, and launchpad next steps.`,
+    query?.trim() ||
+      `latest AI tools and updates worth trying. User preference: ${preferencePrompt(preferences)}. Include setup guides, access limits, starter prompts, and launchpad next steps.`,
   )
     .then(async (items) => {
       if (items?.length) await saveRadarItems(cacheKey, items);
@@ -27,14 +28,15 @@ export async function GET(request: NextRequest) {
   const limit = Math.min(Number(request.nextUrl.searchParams.get("limit") ?? 8) || 8, 20);
   const offset = Math.max(Number(request.nextUrl.searchParams.get("offset") ?? 0) || 0, 0);
   const filter = request.nextUrl.searchParams.get("filter")?.trim() || "All";
+  const query = request.nextUrl.searchParams.get("q")?.trim() || "";
   const clientId = request.nextUrl.searchParams.get("clientId")?.trim() || "";
   const preferences = clientId ? await getPreferences(clientId) : null;
 
   try {
-    const storedPosts = await getRadarPosts({ limit, offset, filter, preferences: preferences ?? undefined });
+    const storedPosts = await getRadarPosts({ limit, offset, filter, query, preferences: preferences ?? undefined });
 
     if (storedPosts?.length) {
-      if (offset === 0) refreshRadarInBackground(cacheKey, preferences);
+      if (offset === 0) refreshRadarInBackground(cacheKey, preferences, query);
 
       return NextResponse.json({
         items: storedPosts,
@@ -49,7 +51,7 @@ export async function GET(request: NextRequest) {
       const cached = await getCachedRadarItems(cacheKey);
 
       if (cached?.items.length) {
-        refreshRadarInBackground(cacheKey, preferences);
+        refreshRadarInBackground(cacheKey, preferences, query);
 
         return NextResponse.json({
           items: cached.items.slice(0, limit),
@@ -60,8 +62,9 @@ export async function GET(request: NextRequest) {
         });
       }
 
-      refreshRadarInBackground(cacheKey, preferences);
+      refreshRadarInBackground(cacheKey, preferences, query);
     }
+    if (offset > 0) refreshRadarInBackground(cacheKey, preferences, query);
   } catch (error) {
     console.error("Live radar fallback:", error);
   }
@@ -73,7 +76,7 @@ export async function GET(request: NextRequest) {
     message:
       offset === 0
         ? "No stored Radar posts yet. Live Exa + OpenAI refresh is running in the background."
-        : "No more stored Radar posts yet.",
-    hasMore: false,
+        : "Retrieving more preference-matched Radar posts in the background.",
+    hasMore: true,
   });
 }

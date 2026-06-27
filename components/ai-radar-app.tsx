@@ -1108,7 +1108,8 @@ export default function AIRadarApp() {
   const [crawling, setCrawling] = useState(false);
   const [visibleRadarCount, setVisibleRadarCount] = useState(5);
   const [loadingMoreRadar, setLoadingMoreRadar] = useState(false);
-  const [hasMoreRadar, setHasMoreRadar] = useState(true);
+  const [radarDiscoveryPage, setRadarDiscoveryPage] = useState(0);
+  const [emptyRadarFetches, setEmptyRadarFetches] = useState(0);
   const [clientId, setClientId] = useState("");
   const [preferences, setPreferences] = useState<UserPreferences>(defaultPreferences);
   const [savedIds, setSavedIds] = useState<string[]>([]);
@@ -1237,7 +1238,6 @@ export default function AIRadarApp() {
           setItems(data.items);
           setFeedSource(data.source);
           setFeedMessage(data.message);
-          setHasMoreRadar(data.hasMore ?? data.items.length >= 8);
         }
       } catch {
         if (!cancelled) {
@@ -1371,24 +1371,54 @@ export default function AIRadarApp() {
       return;
     }
 
-    if (!hasMoreRadar) return;
-
+    const discoveryQueries = [
+      `${preferences.audience} AI tools ${preferences.interests.join(" ")} setup tutorial`,
+      `new AI tools for ${preferences.interests.join(" ")} ${preferences.access} ${preferences.difficulty}`,
+      `latest AI workflows for ${preferences.audience} launchpad starter prompts`,
+      `AI tools worth trying for ${preferences.audience} ${preferences.interests.join(" ")}`,
+    ];
+    const discoveryQuery = discoveryQueries[radarDiscoveryPage % discoveryQueries.length];
     setLoadingMoreRadar(true);
     try {
-      const response = await fetch(`/api/radar?offset=${items.length}&limit=8`, { cache: "no-store" });
+      const params = new URLSearchParams({
+        offset: String(items.length),
+        limit: "8",
+        filter: radarFilter,
+        q: discoveryQuery,
+      });
+      if (clientId) params.set("clientId", clientId);
+      const response = await fetch(`/api/radar?${params.toString()}`, { cache: "no-store" });
       const data = (await response.json()) as RadarResponse;
-      setItems((current) => mergeItems(current, data.items));
+      let addedCount = 0;
+      setItems((current) => {
+        const merged = mergeItems(current, data.items);
+        addedCount = merged.length - current.length;
+        return merged;
+      });
       setFeedSource(data.source);
       setFeedMessage(data.message);
-      setHasMoreRadar(data.hasMore ?? data.items.length >= 8);
+      setRadarDiscoveryPage((page) => page + 1);
+      setEmptyRadarFetches((count) => (addedCount <= 0 ? count + 1 : 0));
       setVisibleRadarCount((count) => count + 6);
+      if (addedCount <= 0) {
+        setToast("Retrieving more posts for your preferences...");
+      }
     } catch {
       setVisibleRadarCount((count) => count + 6);
-      setToast("Could not fetch more live posts. Showing loaded posts.");
+      setToast("Retrieving more posts for your preferences...");
     } finally {
       setLoadingMoreRadar(false);
     }
-  }, [filteredRadarItems.length, hasMoreRadar, items.length, loadingMoreRadar, visibleRadarCount]);
+  }, [
+    clientId,
+    filteredRadarItems.length,
+    items,
+    loadingMoreRadar,
+    preferences,
+    radarDiscoveryPage,
+    radarFilter,
+    visibleRadarCount,
+  ]);
 
   useEffect(() => {
     if (activeTab !== "radar") return;
@@ -1578,7 +1608,6 @@ export default function AIRadarApp() {
       showToast("Preferences saved");
       setItems([]);
       setVisibleRadarCount(5);
-      setHasMoreRadar(true);
       void refreshFeed();
     } catch {
       showToast("Preferences saved locally");
@@ -1593,7 +1622,6 @@ export default function AIRadarApp() {
       setItems(data.items);
       setFeedSource(data.source);
       setFeedMessage(data.message);
-      setHasMoreRadar(data.hasMore ?? data.items.length >= 8);
       setVisibleRadarCount(5);
       showToast("Radar refreshed");
     } catch {
@@ -1784,7 +1812,11 @@ export default function AIRadarApp() {
                       Loading more Radar posts
                     </span>
                   ) : (
-                    <span>{hasMoreRadar ? "Scroll further to fetch more posts" : "You are caught up for now"}</span>
+                    <span>
+                      {emptyRadarFetches > 1
+                        ? "Still retrieving more posts for your preferences..."
+                        : "Scroll further to fetch more posts"}
+                    </span>
                   )}
                 </div>
               </div>
