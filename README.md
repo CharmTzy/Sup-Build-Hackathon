@@ -6,13 +6,15 @@ AI Radar is a mobile-first Next.js app for a hackathon MVP: live AI news becomes
 
 ## Features
 
-- Radar feed with category chips, Today's Pick, Hype Filter scores, perks, limitations, tutorials, prompt packs, mini projects, save, and share actions.
+- Radar feed with category chips and one readable tutorial/news post per row, with source links, save/share actions, and scroll-based loading.
 - Search page with popular searches, real-time results, filters, details modal, save, tutorial, and compare flow.
 - Build page with saved tutorials, mini project progress, completion tracking, prompt-copy counts, streaks, LinkedIn post export, and GitHub README export.
+- Saved page for bookmarked Radar/Search posts.
 - Ask Radar assistant with OpenAI-backed answers when configured and local fallback answers when offline.
 - Server-side Exa + OpenAI integration with mock fallback so the demo still works without API keys.
 - Optional Neon Postgres cache for live Radar cards.
 - URL crawl endpoint that uses Exa content extraction and OpenAI card generation.
+- Normalized database tables for Radar posts, feed membership, crawl cache, and saved items.
 
 ## Tech Stack
 
@@ -81,6 +83,13 @@ DATABASE_URL=postgresql://postgres:postgres@localhost:5432/sup_hackathon?schema=
 The database itself must already exist. The app auto-creates required tables with
 `CREATE TABLE IF NOT EXISTS`.
 
+Current tables:
+
+- `radar_posts`: one row per generated/crawled Radar post.
+- `radar_feed_items`: connects posts to feed/cache keys in display order.
+- `saved_items`: saved posts by anonymous client ID.
+- `radar_cache`: legacy JSON cache kept for compatibility.
+
 ### Health Check
 
 Use this when the UI shows mock data and you expect live data:
@@ -117,11 +126,13 @@ Finished:
 - Live Exa search paired with OpenAI structured generation.
 - Optional Neon cache for the Radar feed.
 - URL crawl route for Exa contents plus OpenAI transformation.
+- Saved tab and single-column Radar reading feed.
+- Database-backed saved posts linked to generated Radar posts.
 
 Still missing:
 
 - A visible UI control for submitting crawl URLs.
-- Database persistence for user saves, project progress, prompt-copy events, and exports.
+- Database persistence for project progress, prompt-copy events, and exports.
 - Scheduled refresh job for daily Radar generation.
 - Auth or anonymous session IDs for multi-device persistence.
 - Production observability, rate limits, and admin controls.
