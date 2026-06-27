@@ -35,25 +35,83 @@ function categoryBase(category: string, text: string) {
   const lower = `${category} ${text}`.toLowerCase();
 
   if (includesAny(lower, ["coding", "developer", "agent", "automation", "workflow"])) {
-    return { useful: 8, student: 8 };
+    return { useful: 6, student: 6 };
   }
   if (includesAny(lower, ["education", "student", "learn", "course", "tutorial"])) {
-    return { useful: 8, student: 9 };
+    return { useful: 6, student: 7 };
   }
   if (includesAny(lower, ["design", "ui", "ux", "image", "video", "creative"])) {
-    return { useful: 7, student: 7 };
+    return { useful: 5, student: 5 };
   }
   if (includesAny(lower, ["research", "paper", "benchmark"])) {
-    return { useful: 7, student: 6 };
+    return { useful: 4, student: 3 };
   }
   if (includesAny(lower, ["frontier", "model release", "preview", "launch"])) {
-    return { useful: 6, student: 5 };
+    return { useful: 5, student: 3 };
   }
   if (includesAny(lower, ["funding", "enterprise", "acquisition", "policy"])) {
-    return { useful: 5, student: 4 };
+    return { useful: 3, student: 2 };
   }
 
-  return { useful: 6, student: 6 };
+  return { useful: 5, student: 4 };
+}
+
+function capScore(value: number, max: number) {
+  return Math.min(clampScore(value), max);
+}
+
+function applyRealisticCaps(item: AIUpdate, text: string, useful: number, student: number) {
+  const access = item.access;
+  const hasConfirmedFreeAccess =
+    access.freeTier ||
+    access.openSource ||
+    access.studentDiscount === "Yes" ||
+    access.trialCredits === "Yes";
+  const hasStudentProof = includesAny(text, ["student", "assignment", "portfolio", "class", "beginner", "learn"]);
+  const hasClearTutorial = (item.tutorial?.steps?.length ?? 0) >= 3 && includesAny(text, ["setup", "step", "try", "quickstart", "tutorial"]);
+  const hasUnknownAccess =
+    access.studentDiscount === "Unknown" ||
+    access.trialCredits === "Unknown" ||
+    includesAny(text, ["pricing and access details should be checked", "unknown"]);
+  const enrichmentWasSkipped = includesAny(text, ["openai enrichment was skipped", "openai score analysis skipped"]);
+  const apiSetupWithoutStudentAccess = access.apiAvailable && !hasConfirmedFreeAccess && !access.noCodeFriendly;
+
+  let usefulMax = 9;
+  let studentMax = 9;
+
+  if (!hasClearTutorial) usefulMax = Math.min(usefulMax, 8);
+  if (!hasConfirmedFreeAccess && hasUnknownAccess) studentMax = Math.min(studentMax, 7);
+  if (apiSetupWithoutStudentAccess) studentMax = Math.min(studentMax, 7);
+  if (access.waitlistRequired || access.paidOnly) {
+    usefulMax = Math.min(usefulMax, 7);
+    studentMax = Math.min(studentMax, 6);
+  }
+  if (enrichmentWasSkipped) {
+    usefulMax = Math.min(usefulMax, 7);
+    studentMax = Math.min(studentMax, 7);
+  }
+  if (includesAny(text, ["enterprise", "contact sales", "limited preview", "invite only"])) {
+    usefulMax = Math.min(usefulMax, 7);
+    studentMax = Math.min(studentMax, 6);
+  }
+
+  const canBePerfect =
+    hasConfirmedFreeAccess &&
+    hasStudentProof &&
+    hasClearTutorial &&
+    item.difficulty === "Beginner" &&
+    !access.waitlistRequired &&
+    !access.paidOnly;
+
+  if (!canBePerfect) {
+    usefulMax = Math.min(usefulMax, 9);
+    studentMax = Math.min(studentMax, 9);
+  }
+
+  return {
+    usefulScore: capScore(useful, usefulMax),
+    studentRelevanceScore: capScore(student, studentMax),
+  };
 }
 
 export function rescoreAIUpdate(item: AIUpdate): AIUpdate {
@@ -80,16 +138,16 @@ export function rescoreAIUpdate(item: AIUpdate): AIUpdate {
   let useful = base.useful;
   let student = base.student;
 
-  if (item.sourceUrl) useful += 1;
+  if (item.sourceUrl) useful += 0.5;
   if (item.access.openSource || item.access.freeTier) {
     useful += 1;
-    student += 2;
+    student += 1;
   }
   if (item.access.trialCredits === "Yes" || item.access.studentDiscount === "Yes") {
     useful += 1;
     student += 1;
   }
-  if (item.access.apiAvailable) useful += 1;
+  if (item.access.apiAvailable) useful += 0.5;
   if (item.access.noCodeFriendly) student += 1;
   if (item.access.paidOnly) {
     useful -= 1;
@@ -104,9 +162,9 @@ export function rescoreAIUpdate(item: AIUpdate): AIUpdate {
     useful += 1;
     student += 1;
   }
-  if (includesAny(text, ["portfolio", "assignment", "study", "class", "student", "beginner", "learn"])) student += 2;
+  if (includesAny(text, ["portfolio", "assignment", "study", "class", "student", "beginner", "learn"])) student += 1;
   if (includesAny(text, ["open source", "free tier", "free plan", "local", "github"])) student += 1;
-  if (includesAny(text, ["available now", "public beta", "released", "launched", "shipping"])) useful += 1;
+  if (includesAny(text, ["available now", "public beta", "released", "launched", "shipping"])) useful += 0.5;
   if (includesAny(text, ["limited preview", "invite only", "enterprise", "contact sales", "not yet available"])) {
     useful -= 1;
     student -= 2;
@@ -118,11 +176,11 @@ export function rescoreAIUpdate(item: AIUpdate): AIUpdate {
   const jitter = scoreJitter(`${item.id}:${item.title}`);
   useful += jitter;
   student -= jitter;
+  const scores = applyRealisticCaps(item, text, useful, student);
 
   return {
     ...item,
-    usefulScore: clampScore(useful),
-    studentRelevanceScore: clampScore(student),
+    ...scores,
   };
 }
 
@@ -193,9 +251,12 @@ export async function scoreAIUpdatesWithOpenAI(items: AIUpdate[], signal?: Abort
                 "Fit for students and early builders. Reward free/open-source access, beginner-friendly setup, learning value, portfolio projects, and low prerequisites. Penalize paid-only, API-only, enterprise, waitlists, or advanced research without a practical path.",
             },
             scoringRules: [
+              "Be skeptical. Never reward a post just because it is about AI, a model launch, or a famous company.",
               "Most good items should land between 5 and 8.",
               "Use 9 only for unusually practical, accessible, timely items.",
-              "Use 10 only when the item is exceptional on that metric.",
+              "Use 10 only when the item is exceptional on that metric and has clear access, a concrete tutorial path, and immediate student/builder value.",
+              "If access or pricing is unknown, studentRelevanceScore should usually be 7 or lower.",
+              "If enrichment was skipped, pricing must be checked, or the post is mostly an article summary, usefulScore and studentRelevanceScore should usually be 7 or lower.",
               "API setup should usually lower student fit unless the tutorial is beginner-friendly and free/cheap.",
               "Research or funding news may be interesting but should not automatically be highly useful.",
             ],
@@ -248,8 +309,26 @@ export async function scoreAIUpdatesWithOpenAI(items: AIUpdate[], signal?: Abort
     return {
       ...item,
       hypeScore: clampScore(score.hypeScore),
-      usefulScore: clampScore(score.usefulScore),
-      studentRelevanceScore: clampScore(score.studentRelevanceScore),
+      ...applyRealisticCaps(
+        item,
+        [
+          item.title,
+          item.summary,
+          item.longExplanation,
+          item.whyItMatters,
+          item.tags.join(" "),
+          item.bestFor.join(" "),
+          item.perks.join(" "),
+          item.limitations.join(" "),
+          item.tutorial.goal,
+          item.tutorial.steps.join(" "),
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase(),
+        score.usefulScore,
+        score.studentRelevanceScore,
+      ),
     };
   });
 }
