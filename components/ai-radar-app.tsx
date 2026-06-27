@@ -223,7 +223,7 @@ function FilterChips({
   onSelect: (filter: string) => void;
 }) {
   return (
-    <div className="flex flex-wrap gap-2 pb-1">
+    <div className="scrollbar-none flex gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible">
       {filterChips.map((chip) => (
         <button
           key={chip}
@@ -339,7 +339,7 @@ function RadarCard({
 
         <div>
           <p className="text-sm font-bold text-violet-200">{item.toolName}</p>
-          <h3 className="mt-2 text-2xl font-black leading-tight text-white">{item.title}</h3>
+          <h3 className="mt-2 text-xl font-black leading-tight text-white sm:text-2xl">{item.title}</h3>
           <p className="mt-3 text-base leading-7 text-slate-200">{item.summary}</p>
         </div>
 
@@ -399,7 +399,7 @@ function RadarCard({
           ))}
         </div>
 
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-5">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
           <ActionButton icon={Eye} onClick={() => onDetails(item)}>
             Read Details
           </ActionButton>
@@ -496,7 +496,7 @@ function LatestRadarPreview({
         </section>
       </div>
 
-      <div className="mt-5 grid grid-cols-1 gap-2 sm:grid-cols-4">
+      <div className="mt-5 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
         <ActionButton icon={Eye} onClick={() => onDetails(item)}>
           Read Details
         </ActionButton>
@@ -556,7 +556,7 @@ function SearchResultCard({
         <p className="mt-1 text-sm text-slate-200">{item.bestFor.join(", ")}</p>
       </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-2">
+      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
         <ActionButton icon={Eye} onClick={() => onDetails(item)}>
           View Details
         </ActionButton>
@@ -598,9 +598,9 @@ function ModalShell({
           exit={{ opacity: 0, y: 24, scale: 0.98 }}
           transition={{ type: "spring", stiffness: 260, damping: 28 }}
           onClick={(event) => event.stopPropagation()}
-          className="max-h-[88vh] w-full max-w-3xl overflow-hidden rounded-[28px] border border-violet-400/15 bg-[#0d0b1e]/97 shadow-2xl shadow-black/60 backdrop-blur-2xl"
+          className="max-h-[92vh] w-full max-w-3xl overflow-hidden rounded-[22px] border border-violet-400/15 bg-[#0d0b1e]/97 shadow-2xl shadow-black/60 backdrop-blur-2xl sm:max-h-[88vh] sm:rounded-[28px]"
         >
-          <div className="flex items-center justify-between gap-3 border-b border-white/10 px-5 py-4">
+          <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-4 sm:px-5">
             <h2 className="min-w-0 truncate text-lg font-black text-white">{title}</h2>
             <button
               type="button"
@@ -611,7 +611,7 @@ function ModalShell({
               <X className="h-4 w-4" />
             </button>
           </div>
-          <div className="max-h-[calc(88vh-72px)] overflow-y-auto px-5 py-5">{children}</div>
+          <div className="max-h-[calc(92vh-72px)] overflow-y-auto px-4 py-4 sm:max-h-[calc(88vh-72px)] sm:px-5 sm:py-5">{children}</div>
         </motion.div>
       </motion.div>
     </AnimatePresence>
@@ -654,8 +654,8 @@ function ArticlePage({
           <SourceLink item={item} />
         </div>
         <p className="mt-6 text-sm font-bold text-violet-200">{item.toolName}</p>
-        <h1 className="mt-3 text-4xl font-black leading-tight tracking-tight text-white lg:text-6xl">{item.title}</h1>
-        <p className="mt-6 text-xl leading-9 text-slate-200">{item.summary}</p>
+        <h1 className="mt-3 text-3xl font-black leading-tight tracking-tight text-white sm:text-4xl lg:text-5xl">{item.title}</h1>
+        <p className="mt-6 text-lg leading-8 text-slate-200 sm:text-xl sm:leading-9">{item.summary}</p>
         <div className="mt-6 flex flex-wrap gap-4 text-sm font-bold text-slate-300">
           <span>Useful: {item.usefulScore}/10</span>
           <span>Student fit: {item.studentRelevanceScore}/10</span>
@@ -663,7 +663,7 @@ function ArticlePage({
         </div>
       </header>
 
-      <div className="mt-10 space-y-10 text-base leading-8 text-slate-200">
+      <div className="mt-8 space-y-8 text-sm leading-7 text-slate-200 sm:mt-10 sm:space-y-10 sm:text-base sm:leading-8">
         <section className="space-y-4">
           <p>{item.longExplanation}</p>
           <p>{item.whyItMatters}</p>
@@ -770,10 +770,10 @@ function TutorialModal({
     <ModalShell title="Quick Tutorial" onClose={onClose}>
       <div className="space-y-5">
         <div>
-          <h3 className="text-2xl font-black leading-tight text-white">{item.tutorial.title}</h3>
+          <h3 className="text-xl font-black leading-tight text-white sm:text-2xl">{item.tutorial.title}</h3>
           <p className="mt-2 text-sm leading-6 text-slate-300">{item.tutorial.goal}</p>
         </div>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           <IconBadge icon={Zap}>{item.tutorial.estimatedTime}</IconBadge>
           <IconBadge icon={BadgeCheck}>{item.tutorial.difficulty}</IconBadge>
         </div>
@@ -854,8 +854,8 @@ function MiniProjectCard({
 }) {
   return (
     <article className="rounded-3xl border border-white/10 bg-white/[0.06] p-4 backdrop-blur-xl">
-      <div className="flex items-start justify-between gap-3">
-        <div>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
           <p className="text-xs font-bold uppercase tracking-[0.1em] text-violet-300">{item.category}</p>
           <h3 className="mt-1 text-lg font-black leading-tight text-white">{item.miniProject.title}</h3>
           <p className="mt-2 text-sm leading-6 text-slate-300">{item.miniProject.output}</p>
@@ -873,7 +873,7 @@ function MiniProjectCard({
           {status}
         </span>
       </div>
-      <div className="mt-3 grid grid-cols-2 gap-2">
+      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
         <IconBadge icon={Zap}>{item.miniProject.difficulty}</IconBadge>
         <IconBadge icon={Trophy}>{item.miniProject.portfolioValue} value</IconBadge>
       </div>
@@ -887,7 +887,7 @@ function MiniProjectCard({
           </div>
         ))}
       </div>
-      <div className="mt-4 grid grid-cols-2 gap-2">
+      <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
         <ActionButton icon={Rocket} onClick={() => onStart(item)} active={status === "In Progress"}>
           {status === "Not Started" ? "Start Project" : "Continue"}
         </ActionButton>
@@ -900,7 +900,7 @@ function MiniProjectCard({
         <ActionButton icon={FileText} onClick={() => onExport(item, "readme")}>
           README
         </ActionButton>
-        <div className="col-span-2">
+        <div className="sm:col-span-2">
           <ActionButton icon={X} onClick={() => onRemove(item)}>
             Remove from Launchpad
           </ActionButton>
@@ -981,7 +981,7 @@ function CompareModal({
                 {item.studentRelevanceScore}/10
               </span>
             </div>
-            <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
+            <dl className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
               <div>
                 <dt className="text-xs font-bold uppercase tracking-[0.08em] text-slate-500">Free tier</dt>
                 <dd className="mt-1 text-slate-200">{item.access.freeTier ? "Yes" : "No"}</dd>
@@ -1213,7 +1213,7 @@ function WebsiteNav({
 }) {
   return (
     <header className="sticky top-0 z-30 border-b border-white/10 bg-[#0b0917]/80 backdrop-blur-2xl">
-      <div className="mx-auto grid min-h-20 w-full max-w-[1800px] gap-4 px-5 py-4 lg:grid-cols-[minmax(210px,280px)_minmax(0,1fr)_auto] lg:items-center lg:gap-5 lg:px-8">
+      <div className="mx-auto grid min-h-20 w-full max-w-[1800px] gap-4 px-4 py-4 sm:px-5 lg:grid-cols-[minmax(210px,280px)_minmax(0,1fr)_auto] lg:items-center lg:gap-5 lg:px-8">
         <button type="button" onClick={() => onTabChange("radar")} className="flex min-w-0 w-fit items-center gap-3 text-left lg:w-auto">
           <RadarLogo />
           <div className="min-w-0">
@@ -1246,7 +1246,7 @@ function WebsiteNav({
           })}
         </nav>
 
-        <div className="flex shrink-0 flex-nowrap items-center gap-2 xl:gap-3">
+        <div className="scrollbar-none flex max-w-full shrink-0 flex-nowrap items-center gap-2 overflow-x-auto xl:gap-3">
           <SourcePill source={feedSource} />
           {authUser ? (
             <div className="flex shrink-0 items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] py-1 pl-3 pr-1">
@@ -2036,7 +2036,7 @@ export default function AIRadarApp() {
         onLogout={() => void logout()}
       />
 
-      <main className="mx-auto w-full max-w-7xl px-5 py-8 lg:px-8 lg:py-10">
+      <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-5 sm:py-8 lg:px-8 lg:py-10">
         {detailsItem ? (
           <ArticlePage
             item={detailsItem}
@@ -2051,7 +2051,7 @@ export default function AIRadarApp() {
           <>
         {activeTab === "radar" ? (
           <section className="space-y-8">
-            <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.06] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl lg:p-8">
+            <header className="relative overflow-hidden rounded-[26px] border border-white/10 bg-white/[0.06] p-4 shadow-2xl shadow-black/30 backdrop-blur-xl sm:rounded-[34px] sm:p-6 lg:p-8">
               <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-violet-400/60 to-transparent" />
               <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-violet-600/10 blur-3xl" />
               <div className="flex flex-wrap items-center gap-3">
@@ -2060,10 +2060,10 @@ export default function AIRadarApp() {
                 </p>
                 <SourcePill source={feedSource} />
               </div>
-              <h1 className="mt-6 max-w-4xl text-4xl font-black tracking-tight text-white lg:text-6xl">
+              <h1 className="mt-6 max-w-4xl text-3xl font-black tracking-tight text-white sm:text-4xl lg:text-6xl">
                 Today&apos;s AI Radar
               </h1>
-              <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-300">
+              <p className="mt-5 max-w-2xl text-base leading-7 text-slate-300 sm:text-lg sm:leading-8">
                 The newest crawled AI update, rewritten into a practical student-friendly walkthrough.
               </p>
               {newestRadarItem ? (
@@ -2089,10 +2089,10 @@ export default function AIRadarApp() {
               )}
             </header>
 
-            <div className="rounded-[28px] border border-white/10 bg-white/[0.055] p-4 backdrop-blur-xl">
+            <div className="rounded-[24px] border border-white/10 bg-white/[0.055] p-3 backdrop-blur-xl sm:rounded-[28px] sm:p-4">
               <div className="mb-4 rounded-2xl border border-violet-400/20 bg-violet-500/10 p-4">
                 <div className="grid gap-3 lg:grid-cols-[1fr_auto]">
-                  <label className="flex min-h-12 items-center gap-3 rounded-xl border border-white/10 bg-[#0b0917]/50 px-4">
+                  <label className="flex min-h-12 items-center gap-3 rounded-xl border border-white/10 bg-[#0b0917]/50 px-3 sm:px-4">
                     <Search className="h-4 w-4 shrink-0 text-violet-200" />
                     <input
                       value={crawlUrl}
@@ -2105,7 +2105,7 @@ export default function AIRadarApp() {
                     type="button"
                     onClick={generateFromUrl}
                     disabled={crawling}
-                    className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-violet-500 to-indigo-600 px-4 text-sm font-black text-white disabled:cursor-wait disabled:opacity-70"
+                    className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-violet-500 to-indigo-600 px-4 text-sm font-black text-white disabled:cursor-wait disabled:opacity-70 lg:w-auto"
                   >
                     {crawling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                     Generate from URL
@@ -2182,12 +2182,12 @@ export default function AIRadarApp() {
             <header className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
               <div>
                 <p className="text-sm font-bold uppercase tracking-[0.12em] text-violet-300">Semantic discovery</p>
-                <h1 className="mt-2 text-4xl font-black tracking-tight lg:text-5xl">Search AI Radar</h1>
+                <h1 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl lg:text-5xl">Search AI Radar</h1>
                 <p className="mt-3 max-w-2xl text-base leading-7 text-slate-300">
                   Find AI tools, updates, tutorials, prompts, and student-friendly perks.
                 </p>
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div className="grid gap-2 sm:flex sm:flex-wrap">
                 <button
                   type="button"
                   onClick={refreshSearch}
@@ -2207,14 +2207,14 @@ export default function AIRadarApp() {
               </div>
             </header>
 
-            <div className="rounded-[32px] border border-white/10 bg-white/[0.065] p-5 backdrop-blur-xl">
-              <label className="flex h-16 items-center gap-4 rounded-2xl border border-white/10 bg-[#0b0917]/40 px-5">
+            <div className="rounded-[24px] border border-white/10 bg-white/[0.065] p-3 backdrop-blur-xl sm:rounded-[32px] sm:p-5">
+              <label className="flex h-14 items-center gap-3 rounded-2xl border border-white/10 bg-[#0b0917]/40 px-4 sm:h-16 sm:gap-4 sm:px-5">
                 <Search className="h-5 w-5 shrink-0 text-violet-300" />
                 <input
                   value={searchQuery}
                   onChange={(event) => handleSearchInput(event.target.value)}
                   placeholder="Search presentations, coding, video, free tools..."
-                  className="min-w-0 flex-1 bg-transparent text-lg text-white outline-none placeholder:text-slate-500"
+                  className="min-w-0 flex-1 bg-transparent text-base text-white outline-none placeholder:text-slate-500 sm:text-lg"
                 />
                 {searching ? <Loader2 className="h-5 w-5 animate-spin text-violet-300" /> : null}
               </label>
@@ -2272,7 +2272,7 @@ export default function AIRadarApp() {
                 ) : null}
               </>
             ) : (
-              <div className="rounded-[28px] border border-white/10 bg-white/[0.06] p-10 text-center">
+              <div className="rounded-[24px] border border-white/10 bg-white/[0.06] p-6 text-center sm:rounded-[28px] sm:p-10">
                 <Search className="mx-auto h-9 w-9 text-violet-300" />
                 <p className="mt-3 text-sm leading-6 text-slate-300">
                   No matching AI updates found. Try searching for &quot;presentation&quot;, &quot;coding&quot;, &quot;video&quot;, or
@@ -2288,7 +2288,7 @@ export default function AIRadarApp() {
             <header className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
               <div>
                 <p className="text-sm font-bold uppercase tracking-[0.12em] text-violet-300">Reading list</p>
-                <h1 className="mt-2 text-4xl font-black tracking-tight lg:text-5xl">Saved Radar</h1>
+                <h1 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl lg:text-5xl">Saved Radar</h1>
                 <p className="mt-3 max-w-2xl text-base leading-7 text-slate-300">
                   Posts you saved from Radar and Search, with the original source link kept for deeper reading.
                 </p>
@@ -2338,12 +2338,12 @@ export default function AIRadarApp() {
             <header className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
               <div>
                 <p className="text-sm font-bold uppercase tracking-[0.12em] text-violet-300">Tool access hub</p>
-                <h1 className="mt-2 text-4xl font-black tracking-tight lg:text-5xl">Launchpad</h1>
+                <h1 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl lg:text-5xl">Launchpad</h1>
                 <p className="mt-3 max-w-2xl text-base leading-7 text-slate-300">
                   Track saved AI tools, access limits, setup steps, and what to try next.
                 </p>
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div className="grid gap-2 sm:flex sm:flex-wrap">
                 <button
                   type="button"
                   onClick={() => exportFromBuild("linkedin")}
@@ -2363,14 +2363,14 @@ export default function AIRadarApp() {
               </div>
             </header>
 
-            <div className="grid gap-4 md:grid-cols-4">
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <StatTile label="Projects completed" value={progress.completedProjects} icon={Trophy} tone="emerald" />
               <StatTile label="Tutorials completed" value={progress.tutorialsCompleted} icon={CheckCircle2} tone="violet" />
               <StatTile label="Prompts copied" value={progress.promptsCopied} icon={Copy} tone="blue" />
               <StatTile label="Saved tools" value={progress.savedTools} icon={Bookmark} tone="amber" />
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-[24px] border border-white/10 bg-white/[0.055] px-5 py-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-[24px] border border-white/10 bg-white/[0.055] px-4 py-4 sm:px-5">
               <div className="flex min-w-0 items-center gap-3">
                 <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-violet-500/20 text-violet-100">
                   <UserRound className="h-5 w-5" />
@@ -2388,7 +2388,7 @@ export default function AIRadarApp() {
                 <button
                   type="button"
                   onClick={() => openAuth("login")}
-                  className="inline-flex h-10 items-center gap-2 rounded-full bg-gradient-to-r from-violet-500 to-indigo-600 px-4 text-sm font-black text-white"
+                  className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-violet-500 to-indigo-600 px-4 text-sm font-black text-white sm:w-auto"
                 >
                   <LogIn className="h-4 w-4" />
                   Log in
@@ -2440,14 +2440,14 @@ export default function AIRadarApp() {
           <section className="space-y-7">
             <header>
               <p className="text-sm font-bold uppercase tracking-[0.12em] text-violet-300">Personalization</p>
-              <h1 className="mt-2 text-4xl font-black tracking-tight lg:text-5xl">Radar Preferences</h1>
+              <h1 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl lg:text-5xl">Radar Preferences</h1>
               <p className="mt-3 max-w-2xl text-base leading-7 text-slate-300">
                 Tune Radar and Search so crawled AI updates match your role, interests, access needs, and skill level.
               </p>
             </header>
 
             <div className="grid gap-5 lg:grid-cols-2">
-              <section className="rounded-[28px] border border-white/10 bg-white/[0.06] p-5">
+              <section className="rounded-[24px] border border-white/10 bg-white/[0.06] p-4 sm:rounded-[28px] sm:p-5">
                 <h2 className="text-lg font-black text-white">Who are you?</h2>
                 <div className="mt-4 grid gap-2 sm:grid-cols-2">
                   {(["Student", "Software Engineer", "UI/UX Designer", "Creator", "Marketer", "Founder", "General"] as const).map((audience) => (
@@ -2468,7 +2468,7 @@ export default function AIRadarApp() {
                 </div>
               </section>
 
-              <section className="rounded-[28px] border border-white/10 bg-white/[0.06] p-5">
+              <section className="rounded-[24px] border border-white/10 bg-white/[0.06] p-4 sm:rounded-[28px] sm:p-5">
                 <h2 className="text-lg font-black text-white">Access and difficulty</h2>
                 <div className="mt-4 grid gap-3">
                   <label className="space-y-2">
@@ -2500,7 +2500,7 @@ export default function AIRadarApp() {
                 </div>
               </section>
 
-              <section className="rounded-[28px] border border-white/10 bg-white/[0.06] p-5 lg:col-span-2">
+              <section className="rounded-[24px] border border-white/10 bg-white/[0.06] p-4 sm:rounded-[28px] sm:p-5 lg:col-span-2">
                 <h2 className="text-lg font-black text-white">What should Radar crawl for you?</h2>
                 <div className="mt-4 flex flex-wrap gap-2">
                   {preferenceInterestOptions.map((interest) => {
@@ -2525,7 +2525,7 @@ export default function AIRadarApp() {
                 <button
                   type="button"
                   onClick={saveUserPreferences}
-                  className="mt-6 inline-flex h-12 items-center gap-2 rounded-full bg-gradient-to-r from-violet-500 to-indigo-600 px-5 text-sm font-black text-white"
+                  className="mt-6 inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-violet-500 to-indigo-600 px-5 text-sm font-black text-white sm:w-auto"
                 >
                   <Sparkles className="h-4 w-4" />
                   Save preferences and refresh Radar
