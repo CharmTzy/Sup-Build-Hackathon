@@ -1,7 +1,8 @@
 import type { AIUpdate, Difficulty, PortfolioValue } from "@/lib/types";
 import { clampScore } from "@/lib/radar-utils";
 
-interface ExaResult {
+export interface ExaResult {
+  id?: string;
   title?: string;
   url?: string;
   publishedDate?: string;
@@ -30,6 +31,25 @@ interface OpenAIResponse {
 }
 
 const openAIModel = process.env.OPENAI_MODEL || "gpt-5.5";
+
+export class LiveDataError extends Error {
+  provider: "exa" | "openai";
+  status: number;
+  details?: string;
+
+  constructor(provider: "exa" | "openai", action: string, status: number, details?: string) {
+    super(`${provider} ${action} failed with ${status}${details ? `: ${details}` : ""}`);
+    this.name = "LiveDataError";
+    this.provider = provider;
+    this.status = status;
+    this.details = details;
+  }
+}
+
+async function responseErrorDetails(response: Response) {
+  const text = await response.text().catch(() => "");
+  return text.trim().slice(0, 240) || response.statusText;
+}
 
 function slugify(input: string, fallback: string) {
   const slug = input
@@ -194,7 +214,7 @@ function liveItemSchema() {
   };
 }
 
-async function searchExa(query: string, numResults = 8) {
+export async function searchExa(query: string, numResults = 8) {
   const exaKey = process.env.EXA_API_KEY;
   if (!exaKey) return null;
 
@@ -222,7 +242,36 @@ async function searchExa(query: string, numResults = 8) {
   });
 
   if (!response.ok) {
-    throw new Error(`Exa search failed with ${response.status}`);
+    throw new LiveDataError("exa", "search", response.status, await responseErrorDetails(response));
+  }
+
+  const data = (await response.json()) as { results?: ExaResult[] };
+  return (data.results ?? []).filter((result) => result.title || result.summary || result.text);
+}
+
+export async function crawlExaUrls(urls: string[]) {
+  const exaKey = process.env.EXA_API_KEY;
+  if (!exaKey || !urls.length) return null;
+
+  const response = await fetch("https://api.exa.ai/contents", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": exaKey,
+    },
+    body: JSON.stringify({
+      urls,
+      text: true,
+      highlights: true,
+      summary: {
+        query:
+          "Summarize the practical AI product update, model release, research result, pricing change, or tutorial value for students and early builders.",
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    throw new LiveDataError("exa", "crawl", response.status, await responseErrorDetails(response));
   }
 
   const data = (await response.json()) as { results?: ExaResult[] };
@@ -242,7 +291,7 @@ function compactExaResult(result: ExaResult, index: number) {
   };
 }
 
-async function transformWithOpenAI(results: ExaResult[], query: string) {
+export async function transformWithOpenAI(results: ExaResult[], query: string) {
   const openAIKey = process.env.OPENAI_API_KEY;
   if (!openAIKey) return null;
 
@@ -270,7 +319,7 @@ async function transformWithOpenAI(results: ExaResult[], query: string) {
           }),
         },
       ],
-      max_output_tokens: 9000,
+      max_output_tokens: 5200,
       text: {
         verbosity: "low",
         format: {
@@ -285,7 +334,7 @@ async function transformWithOpenAI(results: ExaResult[], query: string) {
               items: {
                 type: "array",
                 minItems: 1,
-                maxItems: 8,
+                maxItems: 6,
                 items: liveItemSchema(),
               },
             },
@@ -296,7 +345,12 @@ async function transformWithOpenAI(results: ExaResult[], query: string) {
   });
 
   if (!response.ok) {
-    throw new Error(`OpenAI transform failed with ${response.status}`);
+    throw new LiveDataError(
+      "openai",
+      "transform",
+      response.status,
+      await responseErrorDetails(response),
+    );
   }
 
   const data = (await response.json()) as OpenAIResponse;
@@ -337,11 +391,24 @@ export async function getLiveRadarUpdates(query?: string) {
   const searchQuery =
     query?.trim() ||
     "latest AI tools model releases research breakthroughs AI apps for students builders this week";
-  const results = await searchExa(searchQuery, query ? 6 : 8);
+  const results = await searchExa(searchQuery, query ? 4 : 4);
 
   if (!results?.length) return null;
 
   const generated = await transformWithOpenAI(results, searchQuery);
+  if (!generated?.length) return null;
+
+  return generated.map((item, index) => normalizeGeneratedItem(item, results[index], index));
+}
+
+export async function getCrawledRadarUpdates(urls: string[], query?: string) {
+  const results = await crawlExaUrls(urls);
+  if (!results?.length) return null;
+
+  const generated = await transformWithOpenAI(
+    results,
+    query?.trim() || "Create AI Radar cards from crawled source pages",
+  );
   if (!generated?.length) return null;
 
   return generated.map((item, index) => normalizeGeneratedItem(item, results[index], index));
@@ -395,7 +462,7 @@ export async function askOpenAI(question: string, items: AIUpdate[]) {
   });
 
   if (!response.ok) {
-    throw new Error(`OpenAI answer failed with ${response.status}`);
+    throw new LiveDataError("openai", "answer", response.status, await responseErrorDetails(response));
   }
 
   const data = (await response.json()) as OpenAIResponse;
