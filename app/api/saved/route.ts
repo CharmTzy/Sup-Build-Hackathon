@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { deleteSavedItemForClient, getSavedItems, saveItemForClient } from "@/lib/db";
-import { resolveClientId } from "@/lib/request-client";
+import { resolveSessionClientId } from "@/lib/request-client";
 import type { AIUpdate } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
-  const clientId = await resolveClientId(request);
+  const clientId = await resolveSessionClientId(request);
   if (!clientId) {
-    return NextResponse.json({ items: [], source: "live", message: "clientId is required." }, { status: 400 });
+    return NextResponse.json({ items: [], source: "live", message: "Log in to view saved items." }, { status: 401 });
   }
 
   const items = await getSavedItems(clientId);
@@ -21,13 +21,12 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const body = (await request.json().catch(() => ({}))) as {
-    clientId?: string;
     item?: AIUpdate;
   };
-  const clientId = await resolveClientId(request, body);
+  const clientId = await resolveSessionClientId(request);
 
   if (!clientId || !body.item?.id) {
-    return NextResponse.json({ saved: false, message: "clientId and item are required." }, { status: 400 });
+    return NextResponse.json({ saved: false, message: "Log in to save items." }, { status: 401 });
   }
 
   const saved = await saveItemForClient(clientId, body.item);
@@ -39,14 +38,13 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   const body = (await request.json().catch(() => ({}))) as {
-    clientId?: string;
     postId?: string;
   };
-  const clientId = await resolveClientId(request, body);
+  const clientId = await resolveSessionClientId(request);
   const postId = body.postId?.trim() || request.nextUrl.searchParams.get("postId")?.trim() || "";
 
   if (!clientId || !postId) {
-    return NextResponse.json({ deleted: false, message: "clientId and postId are required." }, { status: 400 });
+    return NextResponse.json({ deleted: false, message: "Log in to remove saved items." }, { status: 401 });
   }
 
   const deleted = await deleteSavedItemForClient(clientId, postId);

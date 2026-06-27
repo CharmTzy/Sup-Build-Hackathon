@@ -117,6 +117,11 @@ function writeStorage(key: string, value: unknown) {
   window.localStorage.setItem(key, JSON.stringify(value));
 }
 
+function removeStorage(key: string) {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(key);
+}
+
 function getOrCreateClientId() {
   if (typeof window === "undefined") return "";
   const existing = window.localStorage.getItem(storageKeys.clientId);
@@ -1214,6 +1219,32 @@ function AuthModal({
   );
 }
 
+function AuthRequiredPanel({
+  title,
+  description,
+  onLogin,
+}: {
+  title: string;
+  description: string;
+  onLogin: () => void;
+}) {
+  return (
+    <div className="rounded-[28px] border border-white/10 bg-white/[0.06] p-8 text-center">
+      <LogIn className="mx-auto h-9 w-9 text-violet-300" />
+      <h2 className="mt-4 text-xl font-black text-white">{title}</h2>
+      <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-300">{description}</p>
+      <button
+        type="button"
+        onClick={onLogin}
+        className="mt-5 inline-flex h-11 items-center gap-2 rounded-full bg-gradient-to-r from-violet-500 to-indigo-600 px-4 text-sm font-black text-white"
+      >
+        <LogIn className="h-4 w-4" />
+        Log in
+      </button>
+    </div>
+  );
+}
+
 function StatTile({
   label,
   value,
@@ -1395,9 +1426,6 @@ export default function AIRadarApp() {
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
-      setSavedIds(readStorage<string[]>(storageKeys.savedIds, []));
-      setSavedItems(readStorage<Record<string, AIUpdate>>(storageKeys.savedItems, {}));
-      setProjectStatuses(readStorage<Record<string, ProjectStatus>>(storageKeys.projectStatuses, {}));
       setPromptsCopied(readStorage<number>(storageKeys.promptsCopied, 0));
       setStreakDates(readStorage<string[]>(storageKeys.streakDates, []));
       setPreferences(readStorage<UserPreferences>(storageKeys.preferences, defaultPreferences));
@@ -1432,33 +1460,31 @@ export default function AIRadarApp() {
   }, [clientId]);
 
   useEffect(() => {
-    if (!clientId) return;
+    if (!authUser) return;
 
     const controller = new AbortController();
     async function loadSavedFromDatabase() {
       try {
-        const response = await fetch(`/api/saved?clientId=${encodeURIComponent(clientId)}`, {
+        const response = await fetch("/api/saved", {
           cache: "no-store",
           signal: controller.signal,
         });
-        if (!response.ok) return;
 
         const data = (await response.json()) as { items?: AIUpdate[] };
-        if (!data.items?.length) return;
+        if (!response.ok) throw new Error("Could not load saved items");
 
-        setSavedItems((current) => ({
-          ...current,
-          ...Object.fromEntries(data.items!.map((item) => [item.id, item])),
-        }));
-        setSavedIds((current) => Array.from(new Set([...current, ...data.items!.map((item) => item.id)])));
+        const items = data.items ?? [];
+        setSavedItems(Object.fromEntries(items.map((item) => [item.id, item])));
+        setSavedIds(items.map((item) => item.id));
       } catch {
-        // Local storage remains the fallback for saved posts.
+        setSavedItems({});
+        setSavedIds([]);
       }
     }
 
     void loadSavedFromDatabase();
     return () => controller.abort();
-  }, [clientId]);
+  }, [authUser]);
 
   useEffect(() => {
     if (!clientId) return;
@@ -1486,28 +1512,26 @@ export default function AIRadarApp() {
   }, [clientId]);
 
   useEffect(() => {
-    if (!clientId) return;
+    if (!authUser) return;
 
     const controller = new AbortController();
     async function loadLaunchpadFromDatabase() {
       try {
-        const response = await fetch(`/api/launchpad?clientId=${encodeURIComponent(clientId)}`, {
+        const response = await fetch("/api/launchpad", {
           cache: "no-store",
           signal: controller.signal,
         });
-        if (!response.ok) return;
+        if (!response.ok) throw new Error("Could not load Launchpad");
         const data = (await response.json()) as { statuses?: Record<string, ProjectStatus> };
-        if (data.statuses && Object.keys(data.statuses).length) {
-          setProjectStatuses((current) => ({ ...current, ...data.statuses }));
-        }
+        setProjectStatuses(data.statuses ?? {});
       } catch {
-        // Local Launchpad status remains active.
+        setProjectStatuses({});
       }
     }
 
     void loadLaunchpadFromDatabase();
     return () => controller.abort();
-  }, [clientId]);
+  }, [authUser]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1785,7 +1809,27 @@ export default function AIRadarApp() {
     return () => window.removeEventListener("scroll", onScroll);
   }, [activeTab, filteredRadarItems.length, loadingMoreRadar, loadMoreRadar, visibleRadarCount]);
 
+  function clearAccountState() {
+    setSavedIds([]);
+    setSavedItems({});
+    setProjectStatuses({});
+    setCompareIds([]);
+    removeStorage(storageKeys.savedIds);
+    removeStorage(storageKeys.savedItems);
+    removeStorage(storageKeys.projectStatuses);
+  }
+
+  function requireAccount(message = "Log in to save this to your account.") {
+    if (authUser) return true;
+    clearAccountState();
+    showToast(message);
+    openAuth("login");
+    return false;
+  }
+
   async function unsaveItem(item: AIUpdate) {
+    if (!requireAccount("Log in to manage saved items.")) return;
+
     setSavedIds((current) => current.filter((id) => id !== item.id));
     setSavedItems((current) => {
       const next = { ...current };
@@ -1799,19 +1843,20 @@ export default function AIRadarApp() {
     });
     showToast("Removed from Launchpad");
 
-    if (!clientId) return;
     try {
       await fetch("/api/saved", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clientId, postId: item.id }),
+        body: JSON.stringify({ postId: item.id }),
       });
     } catch {
-      showToast("Removed locally. Database sync will retry later.");
+      showToast("Could not sync removal. Try again after refreshing.");
     }
   }
 
   async function toggleSavedItem(item: AIUpdate) {
+    if (!requireAccount("Log in to save Radar posts.")) return;
+
     if (savedIds.includes(item.id)) {
       await unsaveItem(item);
       return;
@@ -1820,16 +1865,16 @@ export default function AIRadarApp() {
     rememberItem(item);
     setSavedIds((c) => (c.includes(item.id) ? c : [...c, item.id]));
     showToast("Saved to Launchpad");
-    if (!clientId) return;
 
     try {
       await fetch("/api/saved", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clientId, item }),
+        body: JSON.stringify({ item }),
       });
     } catch {
-      showToast("Saved locally. Database save will retry when available.");
+      await unsaveItem(item);
+      showToast("Could not save to your account. Try again.");
     }
   }
 
@@ -1851,16 +1896,16 @@ export default function AIRadarApp() {
   }
 
   function setLaunchpadStatus(item: AIUpdate, status: ProjectStatus) {
+    if (!requireAccount("Log in to use Launchpad.")) return;
+
     rememberItem(item);
     setSavedIds((current) => (current.includes(item.id) ? current : [...current, item.id]));
     setProjectStatuses((c) => ({ ...c, [item.id]: status }));
-    if (clientId) {
-      void fetch("/api/launchpad", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clientId, postId: item.id, status }),
-      }).catch(() => {});
-    }
+    void fetch("/api/launchpad", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ postId: item.id, status }),
+    }).catch(() => showToast("Could not sync Launchpad status. Try again."));
   }
 
   function startProject(item: AIUpdate) {
@@ -2056,6 +2101,7 @@ export default function AIRadarApp() {
         throw new Error(data.message || "Account request failed.");
       }
 
+      clearAccountState();
       setAuthUser(data.user);
       setClientId(data.user.clientId);
       setAuthOpen(false);
@@ -2072,7 +2118,9 @@ export default function AIRadarApp() {
       await fetch("/api/auth/logout", { method: "POST" });
     } finally {
       setAuthUser(null);
+      clearAccountState();
       setClientId(getOrCreateClientId());
+      if (activeTab === "saved" || activeTab === "build") setActiveTab("radar");
       showToast("Logged out");
     }
   }
@@ -2351,7 +2399,13 @@ export default function AIRadarApp() {
               </span>
             </header>
 
-            {savedTutorials.length ? (
+            {!authUser ? (
+              <AuthRequiredPanel
+                title="Log in to view Saved Radar"
+                description="Saved posts are stored in your account database. Log in to load your reading list on this device."
+                onLogin={() => openAuth("login")}
+              />
+            ) : savedTutorials.length ? (
               <div className="grid w-full gap-5">
                 {savedTutorials.map((item) => (
                   <RadarCard
@@ -2396,6 +2450,7 @@ export default function AIRadarApp() {
                   Track saved AI tools, access limits, setup steps, and what to try next.
                 </p>
               </div>
+              {authUser ? (
               <div className="grid gap-2 sm:flex sm:flex-wrap">
                 <button
                   type="button"
@@ -2414,8 +2469,17 @@ export default function AIRadarApp() {
                   GitHub README
                 </button>
               </div>
+              ) : null}
             </header>
 
+            {!authUser ? (
+              <AuthRequiredPanel
+                title="Log in to use Launchpad"
+                description="Launchpad projects and saved tool statuses are stored in your account database. Log in to load them."
+                onLogin={() => openAuth("login")}
+              />
+            ) : (
+              <>
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <StatTile label="Projects completed" value={progress.completedProjects} icon={Trophy} tone="emerald" />
               <StatTile label="Tutorials completed" value={progress.tutorialsCompleted} icon={CheckCircle2} tone="violet" />
@@ -2486,6 +2550,8 @@ export default function AIRadarApp() {
                   </article>
                 )}
               </section>
+              </>
+            )}
           </section>
         ) : null}
 

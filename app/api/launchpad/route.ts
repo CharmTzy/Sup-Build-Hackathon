@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getLaunchpadStatuses, setLaunchpadStatus } from "@/lib/db";
-import { resolveClientId } from "@/lib/request-client";
+import { resolveSessionClientId } from "@/lib/request-client";
 import type { ProjectStatus } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
-  const clientId = await resolveClientId(request);
+  const clientId = await resolveSessionClientId(request);
   if (!clientId) {
-    return NextResponse.json({ statuses: {}, saved: false, message: "clientId is required." }, { status: 400 });
+    return NextResponse.json({ statuses: {}, saved: false, message: "Log in to view Launchpad." }, { status: 401 });
   }
 
   const statuses = await getLaunchpadStatuses(clientId);
@@ -21,15 +21,14 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const body = (await request.json().catch(() => ({}))) as {
-    clientId?: string;
     postId?: string;
     status?: ProjectStatus;
   };
-  const clientId = await resolveClientId(request, body);
+  const clientId = await resolveSessionClientId(request);
   const postId = body.postId?.trim() || "";
 
   if (!clientId || !postId || !body.status) {
-    return NextResponse.json({ saved: false, message: "clientId, postId, and status are required." }, { status: 400 });
+    return NextResponse.json({ saved: false, message: "Log in to update Launchpad." }, { status: 401 });
   }
 
   const saved = await setLaunchpadStatus(clientId, postId, body.status);
