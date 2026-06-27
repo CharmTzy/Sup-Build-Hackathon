@@ -9,7 +9,7 @@ interface Queryable {
 }
 
 export interface PostQueryOptions {
-  limit?: number;
+  limit?: number | null;
   offset?: number;
   filter?: string;
   query?: string;
@@ -426,11 +426,16 @@ export async function getRadarPosts(options: PostQueryOptions = {}) {
   if (!db) return null;
 
   await ensureSchema(db);
-  const limit = Math.min(options.limit ?? 10, 50);
-  const offset = Math.max(options.offset ?? 0, 0);
   const params: unknown[] = [];
   const where = buildPostWhere(options, params);
-  params.push(limit, offset);
+  let pagination = "";
+
+  if (options.limit !== null) {
+    const limit = Math.min(options.limit ?? 10, 50);
+    const offset = Math.max(options.offset ?? 0, 0);
+    params.push(limit, offset);
+    pagination = `LIMIT $${params.length - 1} OFFSET $${params.length}`;
+  }
 
   const rows = await db.query<Record<string, unknown>>(
     `
@@ -438,7 +443,7 @@ export async function getRadarPosts(options: PostQueryOptions = {}) {
     FROM radar_posts
     ${where}
     ORDER BY updated_at DESC, created_at DESC
-    LIMIT $${params.length - 1} OFFSET $${params.length}
+    ${pagination}
   `,
     params,
   );

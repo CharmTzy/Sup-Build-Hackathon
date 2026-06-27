@@ -445,9 +445,6 @@ function SearchResultCard({
           <h3 className="mt-1 text-lg font-black leading-tight text-white">{item.toolName}</h3>
           <p className="mt-2 text-sm leading-6 text-slate-300">{item.summary}</p>
         </div>
-        <span className="rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 px-2.5 py-1 text-xs font-bold text-white shadow-sm">
-          {item.studentRelevanceScore}/10
-        </span>
       </div>
 
       <div className="mt-3 flex flex-wrap gap-2">
@@ -1263,13 +1260,13 @@ export default function AIRadarApp() {
 
   useEffect(() => {
     const query = searchQuery.trim();
-    if (query.length < 2) return;
 
     const controller = new AbortController();
     const timeout = window.setTimeout(async () => {
       setSearching(true);
       try {
-        const params = new URLSearchParams({ q: query, limit: "12", offset: "0" });
+        const params = new URLSearchParams();
+        if (query) params.set("q", query);
         if (clientId) params.set("clientId", clientId);
         const response = await fetch(`/api/search?${params.toString()}`, {
           cache: "no-store",
@@ -1286,7 +1283,7 @@ export default function AIRadarApp() {
       } finally {
         if (!controller.signal.aborted) setSearching(false);
       }
-    }, 360);
+    }, query ? 360 : 0);
 
     return () => {
       controller.abort();
@@ -1546,7 +1543,6 @@ export default function AIRadarApp() {
   function handleSearchInput(value: string) {
     setSearchQuery(value);
     setSearchAutoRefreshes(0);
-    if (value.trim().length < 2) { setSearchResults(null); setSearching(false); }
   }
 
   function handleRadarFilter(filter: string) {
@@ -1644,11 +1640,6 @@ export default function AIRadarApp() {
   }
 
   function refreshSearch() {
-    const query = searchQuery.trim();
-    if (query.length < 2) {
-      showToast("Type at least two characters to search");
-      return;
-    }
     setSearchResults(null);
     setSearchAutoRefreshes(0);
     setSearchRefreshTick((tick) => tick + 1);
@@ -1830,7 +1821,7 @@ export default function AIRadarApp() {
                   className="inline-flex h-12 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.07] px-5 text-sm font-black text-white transition hover:border-violet-400/30 hover:bg-white/[0.1]"
                 >
                   <GitCompare className="h-4 w-4" />
-                  Compare {compareIds.length ? `(${compareIds.length})` : ""}
+                  Compare
                 </button>
               </div>
             </header>
@@ -1863,8 +1854,7 @@ export default function AIRadarApp() {
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <p className="text-sm text-slate-400">{visibleSearchResults.length} results</p>
+            <div className="flex flex-wrap items-center justify-end gap-3">
               <p className="text-sm text-slate-500">{searchMessage}</p>
             </div>
 

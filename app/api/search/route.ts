@@ -5,7 +5,7 @@ import { getLiveRadarUpdates } from "@/lib/live";
 export const dynamic = "force-dynamic";
 
 function refreshSearchInBackground(query: string, preferenceText: string) {
-  if (!process.env.EXA_API_KEY || !process.env.OPENAI_API_KEY) return;
+  if (!process.env.EXA_API_KEY || !query.trim()) return;
 
   getLiveRadarUpdates(`AI tools updates tutorials access info perks for ${query}. User preference: ${preferenceText}`)
     .then(async (items) => {
@@ -17,35 +17,30 @@ function refreshSearchInBackground(query: string, preferenceText: string) {
 export async function GET(request: NextRequest) {
   const query = request.nextUrl.searchParams.get("q")?.trim() ?? "";
   const clientId = request.nextUrl.searchParams.get("clientId")?.trim() || "";
-  const limit = Math.min(Number(request.nextUrl.searchParams.get("limit") ?? 12) || 12, 30);
-  const offset = Math.max(Number(request.nextUrl.searchParams.get("offset") ?? 0) || 0, 0);
   const preferences = clientId ? await getPreferences(clientId) : null;
-
-  if (!query) {
-    return NextResponse.json({
-      items: [],
-      source: "live",
-      generatedAt: new Date().toISOString(),
-      message: "Type a query to search AI Radar.",
-      hasMore: false,
-    });
-  }
 
   const preferenceText = preferences
     ? `${preferences.audience}; interests: ${preferences.interests.join(", ") || "general"}; access: ${preferences.access}; difficulty: ${preferences.difficulty}`
     : "general users";
 
   try {
-    const stored = await getRadarPosts({ query, preferences: preferences ?? undefined, limit, offset });
-    if (offset === 0) refreshSearchInBackground(query, preferenceText);
+    const stored = await getRadarPosts({
+      query: query || undefined,
+      preferences: preferences ?? undefined,
+      limit: null,
+    });
+
+    if (query.length >= 2) refreshSearchInBackground(query, preferenceText);
 
     if (stored?.length) {
       return NextResponse.json({
         items: stored,
         source: "live",
         generatedAt: new Date().toISOString(),
-        message: "Search results loaded from stored Radar posts. Live crawl refresh runs in the background.",
-        hasMore: stored.length === limit,
+        message: query
+          ? "Search results loaded from all stored Radar posts. Live Exa refresh runs in the background."
+          : "Showing all stored Radar posts and crawled sources.",
+        hasMore: false,
       });
     }
   } catch (error) {
@@ -56,7 +51,9 @@ export async function GET(request: NextRequest) {
     items: [],
     source: "live",
     generatedAt: new Date().toISOString(),
-    message: "No stored search results yet. Live crawl refresh is running in the background.",
+    message: query
+      ? "No stored search results yet. Live Exa refresh is running in the background."
+      : "No stored Radar posts yet. Crawl a source or refresh Radar to fill Search.",
     hasMore: false,
   });
 }
