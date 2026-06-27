@@ -9,6 +9,7 @@
     "db:create-neon": "node scripts/create-neon-db.mjs",
     "db:init": "node scripts/init-db.mjs",
     "db:rescore": "node scripts/rescore-radar-posts.mjs",
+    "db:backfill-images": "node scripts/backfill-radar-images.mjs",
     "seed:radar": "node scripts/seed-radar.mjs",
     "lint": "eslint"
   },

@@ -316,6 +316,32 @@ function CoverImage({ src, alt, className }: { src?: string; alt: string; classN
   );
 }
 
+function sourceImageUrls(item: AIUpdate) {
+  return Array.from(new Set([item.coverImageUrl, ...(item.relatedImageUrls ?? [])].filter((url): url is string => Boolean(url))));
+}
+
+function ArticleImages({ item }: { item: AIUpdate }) {
+  const images = sourceImageUrls(item).slice(0, 3);
+  if (!images.length) return null;
+
+  return (
+    <section className="mt-8 space-y-3">
+      <CoverImage src={images[0]} alt={`${item.title} source image`} />
+      {images.length > 1 ? (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {images.slice(1).map((imageUrl, index) => (
+            <CoverImage
+              key={imageUrl}
+              src={imageUrl}
+              alt={`${item.title} related source image ${index + 2}`}
+            />
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 function RadarCard({
   item,
   saved,
@@ -687,6 +713,7 @@ function ArticlePage({
           <span>Student fit: {item.studentRelevanceScore}/10</span>
           <span>Access: {accessLabel(item)}</span>
         </div>
+        <ArticleImages item={item} />
       </header>
 
       <div className="mt-8 space-y-8 text-sm leading-7 text-slate-200 sm:mt-10 sm:space-y-10 sm:text-base sm:leading-8">

@@ -74,6 +74,7 @@ export interface AIUpdate {
   isFeatured: boolean;
   sourceUrl?: string;
   coverImageUrl?: string;
+  relatedImageUrls?: string[];
 }
 
 export type TabId = "radar" | "search" | "saved" | "build" | "preferences";

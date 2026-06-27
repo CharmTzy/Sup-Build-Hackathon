@@ -250,6 +250,7 @@ function rowToAIUpdate(row: Record<string, unknown>): AIUpdate {
     sourceType: row.source_type as AIUpdate["sourceType"],
     sourceUrl: row.source_url ? String(row.source_url) : undefined,
     coverImageUrl: rawPost?.coverImageUrl,
+    relatedImageUrls: rawPost?.relatedImageUrls,
     isSaved: false,
     isFeatured: Boolean(rawPost?.isFeatured),
   };

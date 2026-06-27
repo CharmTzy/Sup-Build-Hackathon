@@ -247,7 +247,7 @@ export async function searchExa(query: string, numResults = 8) {
             "Summarize the practical AI update, tool, announcement, or research result for students and early builders.",
         },
         extras: {
-          imageLinks: 1,
+          imageLinks: 4,
         },
       },
     }),
@@ -280,7 +280,7 @@ export async function crawlExaUrls(urls: string[]) {
           "Summarize the practical AI product update, model release, research result, pricing change, or tutorial value for students and early builders.",
       },
       extras: {
-        imageLinks: 1,
+        imageLinks: 4,
       },
     }),
   });
@@ -320,16 +320,22 @@ function normalizeImageUrl(url: string | undefined) {
   }
 }
 
-function coverImageFromResult(result: ExaResult | undefined) {
+function sourceImagesFromResult(result: ExaResult | undefined) {
   if (!result) return undefined;
 
-  return [
+  const images = [
     result.image,
     ...(result.extras?.imageLinks ?? []),
     ...(result.imageLinks ?? []),
   ]
     .map(normalizeImageUrl)
-    .find(Boolean);
+    .filter((url): url is string => Boolean(url));
+
+  return Array.from(new Set(images)).slice(0, 4);
+}
+
+function coverImageFromResult(result: ExaResult | undefined) {
+  return sourceImagesFromResult(result)?.[0];
 }
 
 function textPreview(input: string | undefined, maxLength: number) {
@@ -485,6 +491,7 @@ function exaResultToLiveItem(result: ExaResult, index: number, query: string): A
     isFeatured: index === 0,
     sourceUrl: result.url,
     coverImageUrl: coverImageFromResult(result),
+    relatedImageUrls: sourceImagesFromResult(result),
   });
 }
 
@@ -641,6 +648,7 @@ function normalizeGeneratedItem(item: GeneratedLiveItem, result: ExaResult | und
     isFeatured: index === 0,
     sourceUrl: result?.url,
     coverImageUrl: coverImageFromResult(result),
+    relatedImageUrls: sourceImagesFromResult(result),
   };
 }
 
