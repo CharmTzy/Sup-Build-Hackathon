@@ -30,8 +30,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { LucideIcon } from "lucide-react";
-import type { AIUpdate, ProjectStatus, RadarResponse, TabId } from "@/lib/types";
-import { getMockUpdates } from "@/lib/mock-data";
+import type { AIUpdate, ProjectStatus, RadarResponse, TabId, UserPreferences } from "@/lib/types";
 import {
   buildGithubReadme,
   buildLinkedInPost,
@@ -46,6 +45,7 @@ import {
 
 const storageKeys = {
   clientId: "ai-radar.clientId",
+  preferences: "ai-radar.preferences",
   savedIds: "ai-radar.savedIds",
   savedItems: "ai-radar.savedItems",
   projectStatuses: "ai-radar.projectStatuses",
@@ -58,6 +58,27 @@ const tabItems: Array<{ id: TabId; label: string; icon: LucideIcon }> = [
   { id: "search", label: "Search", icon: Search },
   { id: "saved", label: "Saved", icon: Bookmark },
   { id: "build", label: "Launchpad", icon: Hammer },
+  { id: "preferences", label: "Preferences", icon: Sparkles },
+];
+
+const defaultPreferences: UserPreferences = {
+  audience: "Student",
+  interests: ["coding", "productivity", "portfolio"],
+  difficulty: "Any",
+  access: "Any",
+};
+
+const preferenceInterestOptions = [
+  "coding",
+  "ui/ux",
+  "design",
+  "research",
+  "presentations",
+  "video",
+  "marketing",
+  "automation",
+  "portfolio",
+  "free tools",
 ];
 
 function readStorage<T>(key: string, fallback: T): T {
@@ -122,7 +143,7 @@ function SourcePill({ source }: { source: "live" | "mock" }) {
       )}
     >
       <span className={cx("h-1.5 w-1.5 rounded-full", source === "live" ? "bg-violet-400" : "bg-indigo-400")} />
-      {source === "live" ? "Live Exa + OpenAI" : "Demo fallback"}
+      {source === "live" ? "Live / Stored" : "No live data"}
     </span>
   );
 }
@@ -373,7 +394,7 @@ function RadarCard({
             Copy Prompt
           </ActionButton>
           <ActionButton icon={Bookmark} onClick={() => onSave(item)} active={saved}>
-            {saved ? "Saved" : "Launchpad"}
+            {saved ? "Unsave" : "Launchpad"}
           </ActionButton>
           <ActionButton icon={Share2} onClick={() => onShare(item)}>
             Share
@@ -437,7 +458,7 @@ function SearchResultCard({
           Tutorial
         </ActionButton>
         <ActionButton icon={Bookmark} onClick={() => onSave(item)} active={saved}>
-          {saved ? "Saved" : "Save"}
+          {saved ? "Unsave" : "Launchpad"}
         </ActionButton>
         <ActionButton icon={GitCompare} onClick={() => onCompare(item)} active={compared}>
           {compared ? "Selected" : "Compare"}
@@ -701,12 +722,14 @@ function MiniProjectCard({
   onStart,
   onComplete,
   onExport,
+  onRemove,
 }: {
   item: AIUpdate;
   status: ProjectStatus;
   onStart: (item: AIUpdate) => void;
   onComplete: (item: AIUpdate) => void;
   onExport: (item: AIUpdate, type: "linkedin" | "readme") => void;
+  onRemove: (item: AIUpdate) => void;
 }) {
   return (
     <article className="rounded-3xl border border-white/10 bg-white/[0.06] p-4 backdrop-blur-xl">
@@ -756,6 +779,11 @@ function MiniProjectCard({
         <ActionButton icon={FileText} onClick={() => onExport(item, "readme")}>
           README
         </ActionButton>
+        <div className="col-span-2">
+          <ActionButton icon={X} onClick={() => onRemove(item)}>
+            Remove from Launchpad
+          </ActionButton>
+        </div>
       </div>
     </article>
   );
@@ -1013,23 +1041,24 @@ function WebsiteNav({
 }
 
 export default function AIRadarApp() {
-  const initialItems = useMemo(() => getMockUpdates(), []);
   const [activeTab, setActiveTab] = useState<TabId>("radar");
-  const [items, setItems] = useState<AIUpdate[]>(initialItems);
-  const [feedSource, setFeedSource] = useState<"live" | "mock">("mock");
-  const [feedMessage, setFeedMessage] = useState("Demo cards loaded while live Exa + OpenAI refresh runs.");
+  const [items, setItems] = useState<AIUpdate[]>([]);
+  const [feedSource, setFeedSource] = useState<"live" | "mock">("live");
+  const [feedMessage, setFeedMessage] = useState("Loading stored Radar posts...");
   const [loadingFeed, setLoadingFeed] = useState(true);
   const [radarFilter, setRadarFilter] = useState("All");
   const [searchFilter, setSearchFilter] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<AIUpdate[] | null>(null);
   const [searching, setSearching] = useState(false);
+  const [searchMessage, setSearchMessage] = useState("Search stored Radar posts; live crawling refreshes in the background.");
   const [crawlUrl, setCrawlUrl] = useState("");
   const [crawling, setCrawling] = useState(false);
   const [visibleRadarCount, setVisibleRadarCount] = useState(5);
   const [loadingMoreRadar, setLoadingMoreRadar] = useState(false);
   const [hasMoreRadar, setHasMoreRadar] = useState(true);
   const [clientId, setClientId] = useState("");
+  const [preferences, setPreferences] = useState<UserPreferences>(defaultPreferences);
   const [savedIds, setSavedIds] = useState<string[]>([]);
   const [savedItems, setSavedItems] = useState<Record<string, AIUpdate>>({});
   const [projectStatuses, setProjectStatuses] = useState<Record<string, ProjectStatus>>({});
@@ -1050,6 +1079,7 @@ export default function AIRadarApp() {
       setProjectStatuses(readStorage<Record<string, ProjectStatus>>(storageKeys.projectStatuses, {}));
       setPromptsCopied(readStorage<number>(storageKeys.promptsCopied, 0));
       setStreakDates(readStorage<string[]>(storageKeys.streakDates, []));
+      setPreferences(readStorage<UserPreferences>(storageKeys.preferences, defaultPreferences));
       setClientId(getOrCreateClientId());
     });
     return () => window.cancelAnimationFrame(frame);
@@ -1085,11 +1115,42 @@ export default function AIRadarApp() {
   }, [clientId]);
 
   useEffect(() => {
+    if (!clientId) return;
+
+    const controller = new AbortController();
+    async function loadPreferencesFromDatabase() {
+      try {
+        const response = await fetch(`/api/preferences?clientId=${encodeURIComponent(clientId)}`, {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        if (!response.ok) return;
+        const data = (await response.json()) as { preferences?: UserPreferences | null };
+        if (data.preferences) {
+          setPreferences(data.preferences);
+          writeStorage(storageKeys.preferences, data.preferences);
+        }
+      } catch {
+        // Local preferences remain active.
+      }
+    }
+
+    void loadPreferencesFromDatabase();
+    return () => controller.abort();
+  }, [clientId]);
+
+  useEffect(() => {
     let cancelled = false;
     async function loadFeed() {
       setLoadingFeed(true);
       try {
-        const response = await fetch("/api/radar", { cache: "no-store" });
+        const params = new URLSearchParams({
+          limit: "8",
+          offset: "0",
+          filter: radarFilter,
+        });
+        if (clientId) params.set("clientId", clientId);
+        const response = await fetch(`/api/radar?${params.toString()}`, { cache: "no-store" });
         const data = (await response.json()) as RadarResponse;
         if (!cancelled) {
           setItems(data.items);
@@ -1107,13 +1168,14 @@ export default function AIRadarApp() {
     }
     loadFeed();
     return () => { cancelled = true; };
-  }, []);
+  }, [clientId, radarFilter]);
 
   useEffect(() => writeStorage(storageKeys.savedIds, savedIds), [savedIds]);
   useEffect(() => writeStorage(storageKeys.savedItems, savedItems), [savedItems]);
   useEffect(() => writeStorage(storageKeys.projectStatuses, projectStatuses), [projectStatuses]);
   useEffect(() => writeStorage(storageKeys.promptsCopied, promptsCopied), [promptsCopied]);
   useEffect(() => writeStorage(storageKeys.streakDates, streakDates), [streakDates]);
+  useEffect(() => writeStorage(storageKeys.preferences, preferences), [preferences]);
 
   useEffect(() => {
     const query = searchQuery.trim();
@@ -1123,15 +1185,19 @@ export default function AIRadarApp() {
     const timeout = window.setTimeout(async () => {
       setSearching(true);
       try {
-        const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`, {
+        const params = new URLSearchParams({ q: query, limit: "12", offset: "0" });
+        if (clientId) params.set("clientId", clientId);
+        const response = await fetch(`/api/search?${params.toString()}`, {
           cache: "no-store",
           signal: controller.signal,
         });
         const data = (await response.json()) as RadarResponse;
         setSearchResults(data.items);
+        setSearchMessage(data.message);
       } catch {
         if (!controller.signal.aborted) {
           setSearchResults(searchItems(items, query));
+          setSearchMessage("Could not reach live search. Showing stored local matches only.");
         }
       } finally {
         if (!controller.signal.aborted) setSearching(false);
@@ -1142,7 +1208,7 @@ export default function AIRadarApp() {
       controller.abort();
       window.clearTimeout(timeout);
     };
-  }, [items, searchQuery]);
+  }, [clientId, items, searchQuery]);
 
   useEffect(() => {
     if (!toast) return;
@@ -1214,10 +1280,36 @@ export default function AIRadarApp() {
     return () => window.removeEventListener("scroll", onScroll);
   }, [activeTab, filteredRadarItems.length, loadingMoreRadar, loadMoreRadar, visibleRadarCount]);
 
-  async function saveItem(item: AIUpdate) {
+  async function unsaveItem(item: AIUpdate) {
+    setSavedIds((current) => current.filter((id) => id !== item.id));
+    setSavedItems((current) => {
+      const next = { ...current };
+      delete next[item.id];
+      return next;
+    });
+    showToast("Removed from Launchpad");
+
+    if (!clientId) return;
+    try {
+      await fetch("/api/saved", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId, postId: item.id }),
+      });
+    } catch {
+      showToast("Removed locally. Database sync will retry later.");
+    }
+  }
+
+  async function toggleSavedItem(item: AIUpdate) {
+    if (savedIds.includes(item.id)) {
+      await unsaveItem(item);
+      return;
+    }
+
     rememberItem(item);
     setSavedIds((c) => (c.includes(item.id) ? c : [...c, item.id]));
-    showToast("Saved to Saved Radar");
+    showToast("Saved to Launchpad");
     if (!clientId) return;
 
     try {
@@ -1306,6 +1398,41 @@ export default function AIRadarApp() {
     setVisibleRadarCount(5);
   }
 
+  function updatePreferences(next: UserPreferences) {
+    setPreferences(next);
+    writeStorage(storageKeys.preferences, next);
+  }
+
+  function togglePreferenceInterest(interest: string) {
+    const interests = preferences.interests.includes(interest)
+      ? preferences.interests.filter((item) => item !== interest)
+      : [...preferences.interests, interest];
+    updatePreferences({ ...preferences, interests });
+  }
+
+  async function saveUserPreferences() {
+    writeStorage(storageKeys.preferences, preferences);
+    if (!clientId) {
+      showToast("Preferences saved on this device");
+      return;
+    }
+
+    try {
+      await fetch("/api/preferences", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId, preferences }),
+      });
+      showToast("Preferences saved");
+      setItems([]);
+      setVisibleRadarCount(5);
+      setHasMoreRadar(true);
+      void refreshFeed();
+    } catch {
+      showToast("Preferences saved locally");
+    }
+  }
+
   async function refreshFeed() {
     setLoadingFeed(true);
     try {
@@ -1316,7 +1443,7 @@ export default function AIRadarApp() {
       setFeedMessage(data.message);
       setHasMoreRadar(data.hasMore ?? data.items.length >= 8);
       setVisibleRadarCount(5);
-      showToast(data.source === "live" ? "Live radar refreshed" : "Demo radar refreshed");
+      showToast("Radar refreshed");
     } catch {
       showToast("Feed refresh failed");
     } finally {
@@ -1358,6 +1485,17 @@ export default function AIRadarApp() {
     } finally {
       setCrawling(false);
     }
+  }
+
+  function refreshSearch() {
+    const query = searchQuery.trim();
+    if (query.length < 2) {
+      showToast("Type at least two characters to search");
+      return;
+    }
+    setSearchResults(null);
+    setSearchQuery(`${query} `);
+    window.setTimeout(() => setSearchQuery(query), 0);
   }
 
   return (
@@ -1468,7 +1606,7 @@ export default function AIRadarApp() {
                     key={item.id}
                     item={item}
                     saved={savedIds.includes(item.id)}
-                    onSave={saveItem}
+                    onSave={toggleSavedItem}
                     onTutorial={setTutorialItem}
                     onCopyPrompt={copyText}
                     onShare={shareItem}
@@ -1504,14 +1642,24 @@ export default function AIRadarApp() {
                   Find AI tools, updates, tutorials, prompts, and student-friendly perks.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={openCompare}
-                className="inline-flex h-12 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.07] px-5 text-sm font-black text-white transition hover:border-violet-400/30 hover:bg-white/[0.1]"
-              >
-                <GitCompare className="h-4 w-4" />
-                Compare {compareIds.length ? `(${compareIds.length})` : ""}
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={refreshSearch}
+                  className="inline-flex h-12 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.07] px-5 text-sm font-black text-white transition hover:border-violet-400/30 hover:bg-white/[0.1]"
+                >
+                  {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                  Refresh live search
+                </button>
+                <button
+                  type="button"
+                  onClick={openCompare}
+                  className="inline-flex h-12 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.07] px-5 text-sm font-black text-white transition hover:border-violet-400/30 hover:bg-white/[0.1]"
+                >
+                  <GitCompare className="h-4 w-4" />
+                  Compare {compareIds.length ? `(${compareIds.length})` : ""}
+                </button>
+              </div>
             </header>
 
             <div className="rounded-[32px] border border-white/10 bg-white/[0.065] p-5 backdrop-blur-xl">
@@ -1544,7 +1692,7 @@ export default function AIRadarApp() {
 
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="text-sm text-slate-400">{visibleSearchResults.length} results</p>
-              <p className="text-sm text-slate-500">Search matches titles, perks, prompts, tutorials, and mini projects.</p>
+              <p className="text-sm text-slate-500">{searchMessage}</p>
             </div>
 
             {visibleSearchResults.length ? (
@@ -1557,7 +1705,7 @@ export default function AIRadarApp() {
                     compared={compareIds.includes(item.id)}
                     onDetails={setDetailsItem}
                     onTutorial={setTutorialItem}
-                    onSave={saveItem}
+                    onSave={toggleSavedItem}
                     onCompare={toggleCompare}
                   />
                 ))}
@@ -1596,7 +1744,7 @@ export default function AIRadarApp() {
                     key={item.id}
                     item={item}
                     saved
-                    onSave={saveItem}
+                    onSave={toggleSavedItem}
                     onTutorial={setTutorialItem}
                     onCopyPrompt={copyText}
                     onShare={shareItem}
@@ -1709,6 +1857,13 @@ export default function AIRadarApp() {
                             Continue
                             <ChevronRight className="h-4 w-4" />
                           </button>
+                          <button
+                            type="button"
+                            onClick={() => void unsaveItem(item)}
+                            className="mt-2 inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl border border-red-300/20 bg-red-500/10 text-xs font-bold text-red-100 transition hover:bg-red-500/20"
+                          >
+                            Remove from Launchpad
+                          </button>
                         </article>
                       ))}
                     </div>
@@ -1740,6 +1895,7 @@ export default function AIRadarApp() {
                         onStart={startProject}
                         onComplete={completeProject}
                         onExport={openExport}
+                        onRemove={unsaveItem}
                       />
                     ))}
                   </div>
@@ -1754,6 +1910,105 @@ export default function AIRadarApp() {
                     </p>
                   </article>
                 )}
+              </section>
+            </div>
+          </section>
+        ) : null}
+
+        {activeTab === "preferences" ? (
+          <section className="space-y-7">
+            <header>
+              <p className="text-sm font-bold uppercase tracking-[0.12em] text-violet-300">Personalization</p>
+              <h1 className="mt-2 text-4xl font-black tracking-tight lg:text-5xl">Radar Preferences</h1>
+              <p className="mt-3 max-w-2xl text-base leading-7 text-slate-300">
+                Tune Radar and Search so crawled AI updates match your role, interests, access needs, and skill level.
+              </p>
+            </header>
+
+            <div className="grid gap-5 lg:grid-cols-2">
+              <section className="rounded-[28px] border border-white/10 bg-white/[0.06] p-5">
+                <h2 className="text-lg font-black text-white">Who are you?</h2>
+                <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                  {(["Student", "Software Engineer", "UI/UX Designer", "Creator", "Marketer", "Founder", "General"] as const).map((audience) => (
+                    <button
+                      key={audience}
+                      type="button"
+                      onClick={() => updatePreferences({ ...preferences, audience })}
+                      className={cx(
+                        "rounded-2xl border px-4 py-3 text-left text-sm font-bold transition",
+                        preferences.audience === audience
+                          ? "border-violet-400/50 bg-violet-500 text-white"
+                          : "border-white/10 bg-white/[0.05] text-slate-200 hover:bg-white/[0.09]",
+                      )}
+                    >
+                      {audience}
+                    </button>
+                  ))}
+                </div>
+              </section>
+
+              <section className="rounded-[28px] border border-white/10 bg-white/[0.06] p-5">
+                <h2 className="text-lg font-black text-white">Access and difficulty</h2>
+                <div className="mt-4 grid gap-3">
+                  <label className="space-y-2">
+                    <span className="text-sm font-bold text-slate-300">Preferred access</span>
+                    <select
+                      value={preferences.access}
+                      onChange={(event) => updatePreferences({ ...preferences, access: event.target.value as UserPreferences["access"] })}
+                      className="h-12 w-full rounded-2xl border border-white/10 bg-[#0b0917] px-4 text-sm font-bold text-white outline-none"
+                    >
+                      {(["Any", "Free", "Freemium", "Trial", "Paid", "Open Source"] as const).map((access) => (
+                        <option key={access}>{access}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="space-y-2">
+                    <span className="text-sm font-bold text-slate-300">Difficulty</span>
+                    <select
+                      value={preferences.difficulty}
+                      onChange={(event) =>
+                        updatePreferences({ ...preferences, difficulty: event.target.value as UserPreferences["difficulty"] })
+                      }
+                      className="h-12 w-full rounded-2xl border border-white/10 bg-[#0b0917] px-4 text-sm font-bold text-white outline-none"
+                    >
+                      {(["Any", "Beginner", "Intermediate", "Advanced"] as const).map((difficulty) => (
+                        <option key={difficulty}>{difficulty}</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              </section>
+
+              <section className="rounded-[28px] border border-white/10 bg-white/[0.06] p-5 lg:col-span-2">
+                <h2 className="text-lg font-black text-white">What should Radar crawl for you?</h2>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {preferenceInterestOptions.map((interest) => {
+                    const active = preferences.interests.includes(interest);
+                    return (
+                      <button
+                        key={interest}
+                        type="button"
+                        onClick={() => togglePreferenceInterest(interest)}
+                        className={cx(
+                          "rounded-full border px-4 py-2 text-sm font-bold transition",
+                          active
+                            ? "border-violet-400/50 bg-violet-500 text-white"
+                            : "border-white/10 bg-white/[0.05] text-slate-200 hover:bg-white/[0.09]",
+                        )}
+                      >
+                        {interest}
+                      </button>
+                    );
+                  })}
+                </div>
+                <button
+                  type="button"
+                  onClick={saveUserPreferences}
+                  className="mt-6 inline-flex h-12 items-center gap-2 rounded-full bg-gradient-to-r from-violet-500 to-indigo-600 px-5 text-sm font-black text-white"
+                >
+                  <Sparkles className="h-4 w-4" />
+                  Save preferences and refresh Radar
+                </button>
               </section>
             </div>
           </section>

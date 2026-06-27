@@ -1,11 +1,19 @@
 import { neon } from "@neondatabase/serverless";
 import { Pool } from "pg";
-import type { AIUpdate } from "@/lib/types";
+import type { AIUpdate, UserPreferences } from "@/lib/types";
 
 const CACHE_TTL_MS = 1000 * 60 * 60 * 6;
 
 interface Queryable {
   query<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<T[]>;
+}
+
+export interface PostQueryOptions {
+  limit?: number;
+  offset?: number;
+  filter?: string;
+  query?: string;
+  preferences?: UserPreferences;
 }
 
 let client: Queryable | null = null;
@@ -119,6 +127,15 @@ async function ensureSchema(db: Queryable) {
       post_id TEXT NOT NULL REFERENCES radar_posts(id) ON DELETE CASCADE,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       PRIMARY KEY (client_id, post_id)
+    )
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS user_preferences (
+      client_id TEXT PRIMARY KEY,
+      preferences JSONB NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
 
@@ -313,20 +330,79 @@ export async function getCachedRadarItems(cacheKey: string) {
   };
 }
 
-export async function getRadarPosts(limit = 10, offset = 0) {
+function buildPostWhere(options: PostQueryOptions, params: unknown[]) {
+  const clauses: string[] = [];
+  const textClause = (value: string) => {
+    params.push(`%${value}%`);
+    const ref = `$${params.length}`;
+    return `(
+      title ILIKE ${ref}
+      OR tool_name ILIKE ${ref}
+      OR category ILIKE ${ref}
+      OR summary ILIKE ${ref}
+      OR long_explanation ILIKE ${ref}
+      OR why_it_matters ILIKE ${ref}
+      OR raw_post::text ILIKE ${ref}
+    )`;
+  };
+
+  if (options.query?.trim()) clauses.push(textClause(options.query.trim()));
+
+  if (options.filter && options.filter.toLowerCase() !== "all") {
+    const normalized = options.filter.toLowerCase();
+    if (normalized === "free tools") {
+      clauses.push(`((access->>'freeTier')::boolean = true OR (access->>'openSource')::boolean = true OR raw_post::text ILIKE '%free%')`);
+    } else if (normalized === "portfolio") {
+      clauses.push(`(mini_project->>'portfolioValue' = 'High' OR raw_post::text ILIKE '%portfolio%')`);
+    } else {
+      clauses.push(textClause(options.filter));
+    }
+  }
+
+  const preferenceTerms = [
+    ...(options.preferences?.audience && options.preferences.audience !== "General" ? [options.preferences.audience] : []),
+    ...(options.preferences?.interests ?? []),
+  ].filter(Boolean);
+
+  if (!options.query && preferenceTerms.length) {
+    const preferenceClauses = preferenceTerms.map((term) => textClause(term));
+    clauses.push(`(${preferenceClauses.join(" OR ")})`);
+  }
+
+  if (options.preferences?.difficulty && options.preferences.difficulty !== "Any") {
+    clauses.push(`difficulty = $${params.length + 1}`);
+    params.push(options.preferences.difficulty);
+  }
+
+  const access = options.preferences?.access;
+  if (access === "Free") clauses.push(`(access->>'freeTier')::boolean = true`);
+  if (access === "Trial") clauses.push(`access->>'trialCredits' = 'Yes'`);
+  if (access === "Paid") clauses.push(`(access->>'paidOnly')::boolean = true`);
+  if (access === "Open Source") clauses.push(`(access->>'openSource')::boolean = true`);
+
+  return clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
+}
+
+export async function getRadarPosts(options: PostQueryOptions = {}) {
   const db = getClient();
   if (!db) return null;
 
   await ensureSchema(db);
+  const limit = Math.min(options.limit ?? 10, 50);
+  const offset = Math.max(options.offset ?? 0, 0);
+  const params: unknown[] = [];
+  const where = buildPostWhere(options, params);
+  params.push(limit, offset);
 
   const rows = await db.query<Record<string, unknown>>(
     `
     SELECT *
     FROM radar_posts
+    ${where}
     ORDER BY updated_at DESC, created_at DESC
-    LIMIT $1 OFFSET $2
+    LIMIT $${params.length - 1} OFFSET $${params.length}
   `,
-    [limit, offset],
+    params,
   );
 
   return rows.map(rowToAIUpdate);
@@ -421,6 +497,44 @@ export async function deleteSavedItemForClient(clientId: string, postId: string)
     WHERE client_id = $1 AND post_id = $2
   `,
     [clientId, postId],
+  );
+
+  return true;
+}
+
+export async function getPreferences(clientId: string) {
+  const db = getClient();
+  if (!db || !clientId) return null;
+
+  await ensureSchema(db);
+  const rows = await db.query<{ preferences?: UserPreferences }>(
+    `
+    SELECT preferences
+    FROM user_preferences
+    WHERE client_id = $1
+    LIMIT 1
+  `,
+    [clientId],
+  );
+
+  return rows[0]?.preferences ?? null;
+}
+
+export async function savePreferences(clientId: string, preferences: UserPreferences) {
+  const db = getClient();
+  if (!db || !clientId) return false;
+
+  await ensureSchema(db);
+  await db.query(
+    `
+    INSERT INTO user_preferences (client_id, preferences, updated_at)
+    VALUES ($1, $2::jsonb, NOW())
+    ON CONFLICT (client_id)
+    DO UPDATE SET
+      preferences = EXCLUDED.preferences,
+      updated_at = NOW()
+  `,
+    [clientId, JSON.stringify(preferences)],
   );
 
   return true;

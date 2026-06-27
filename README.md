@@ -11,6 +11,7 @@ AI Radar is a mobile-first Next.js app for a hackathon MVP: live AI news becomes
 - Search page with popular searches, real-time results, filters, details modal, save, tutorial, and compare flow.
 - Launchpad page with saved tutorials, mini project progress, completion tracking, prompt-copy counts, streaks, LinkedIn post export, and GitHub README export.
 - Saved page for bookmarked Radar/Search posts.
+- Preferences page for audience, interests, preferred access, and difficulty. Radar and Search use these preferences when loading stored posts and triggering live refreshes.
 - Ask Radar assistant with OpenAI-backed answers when configured and local fallback answers when offline.
 - Server-side Exa + OpenAI integration with mock fallback so the demo still works without API keys.
 - Optional Neon Postgres cache for live Radar cards.
@@ -57,6 +58,7 @@ With keys, these route handlers become live:
 - `app/api/ask/route.ts`: OpenAI answer synthesis over the current Radar dataset
 - `app/api/crawl/route.ts`: Exa URL crawl/content extraction -> OpenAI structured AI Radar cards
 - `app/api/health/route.ts`: safe server-side checks for database, Exa, and OpenAI configuration
+- `app/api/preferences/route.ts`: save and load user preferences by anonymous client ID
 
 ### Crawl API
 
@@ -135,6 +137,7 @@ Current tables:
 - `radar_feed_items`: connects posts to feed/cache keys in display order.
 - `saved_items`: saved posts by anonymous client ID.
 - `radar_cache`: legacy JSON cache kept for compatibility.
+- `user_preferences`: audience/interests/access/difficulty preferences for personalized Radar and Search.
 
 ### Health Check
 
@@ -216,10 +219,13 @@ Finished:
 - Database-backed saved posts linked to generated Radar posts.
 - Non-blocking Radar API that avoids request-time Exa/OpenAI timeouts.
 - URL-to-Radar composer on the Radar page.
+- Preferences-backed Radar/Search loading with no mock feed data.
+- Save and unsave support for Launchpad/Saved items.
 
 Still missing:
 
 - Database persistence for project progress, prompt-copy events, and exports.
+- A stronger worker/cron process for crawling preference-based content continuously.
 - Scheduled refresh job for daily Radar generation.
 - Auth or anonymous session IDs for multi-device persistence.
 - Production observability, rate limits, and admin controls.

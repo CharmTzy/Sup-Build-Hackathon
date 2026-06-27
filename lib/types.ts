@@ -75,8 +75,15 @@ export interface AIUpdate {
   sourceUrl?: string;
 }
 
-export type TabId = "radar" | "search" | "saved" | "build";
+export type TabId = "radar" | "search" | "saved" | "build" | "preferences";
 export type ProjectStatus = "Not Started" | "In Progress" | "Completed";
+
+export interface UserPreferences {
+  audience: "Student" | "Software Engineer" | "UI/UX Designer" | "Creator" | "Marketer" | "Founder" | "General";
+  interests: string[];
+  difficulty: Difficulty | "Any";
+  access: "Any" | "Free" | "Freemium" | "Trial" | "Paid" | "Open Source";
+}
 
 export interface RadarResponse {
   items: AIUpdate[];
