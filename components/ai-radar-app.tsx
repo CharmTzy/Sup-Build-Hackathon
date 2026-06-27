@@ -40,7 +40,6 @@ import {
   getAccessBadgeText,
   getProgressTotals,
   popularSearches,
-  searchItems,
 } from "@/lib/radar-utils";
 
 const storageKeys = {
@@ -142,18 +141,14 @@ function RadarLogo() {
   );
 }
 
-function SourcePill({ source }: { source: "live" | "mock" }) {
+function SourcePill({ source }: { source: "live" }) {
   return (
     <span
-      className={cx(
-        "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em]",
-        source === "live"
-          ? "border-violet-400/40 bg-violet-400/15 text-violet-200"
-          : "border-indigo-400/30 bg-indigo-400/10 text-indigo-300",
-      )}
+      title={`Source: ${source}`}
+      className="inline-flex items-center gap-1 rounded-full border border-violet-400/40 bg-violet-400/15 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-violet-200"
     >
-      <span className={cx("h-1.5 w-1.5 rounded-full", source === "live" ? "bg-violet-400" : "bg-indigo-400")} />
-      {source === "live" ? "Live / Stored" : "No live data"}
+      <span className="h-1.5 w-1.5 rounded-full bg-violet-400" />
+      Live / Stored
     </span>
   );
 }
@@ -939,9 +934,9 @@ function AskModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question, items }),
       });
-      const data = (await response.json()) as { answer?: string; source?: "live" | "mock" };
+      const data = (await response.json()) as { answer?: string; source?: "live" };
       setAnswer(data.answer ?? "Radar could not answer that yet.");
-      onToast(data.source === "live" ? "Ask Radar used OpenAI" : "Ask Radar used local fallback");
+      onToast(data.source === "live" ? "Ask Radar used live Radar data" : "Ask Radar could not use live data");
     } catch {
       setAnswer("Radar could not connect. Try asking from the Search page results.");
       onToast("Ask Radar fallback shown");
@@ -1037,7 +1032,7 @@ function WebsiteNav({
   activeTab: TabId;
   onTabChange: (tab: TabId) => void;
   onAsk: () => void;
-  feedSource: "live" | "mock";
+  feedSource: "live";
 }) {
   return (
     <header className="sticky top-0 z-30 border-b border-white/10 bg-[#0b0917]/80 backdrop-blur-2xl">
@@ -1093,7 +1088,7 @@ function WebsiteNav({
 export default function AIRadarApp() {
   const [activeTab, setActiveTab] = useState<TabId>("radar");
   const [items, setItems] = useState<AIUpdate[]>([]);
-  const [feedSource, setFeedSource] = useState<"live" | "mock">("live");
+  const [feedSource, setFeedSource] = useState<"live">("live");
   const [feedMessage, setFeedMessage] = useState("Loading stored Radar posts...");
   const [loadingFeed, setLoadingFeed] = useState(true);
   const [radarFilter, setRadarFilter] = useState("All");
@@ -1277,8 +1272,8 @@ export default function AIRadarApp() {
         setSearchMessage(data.message);
       } catch {
         if (!controller.signal.aborted) {
-          setSearchResults(searchItems(items, query));
-          setSearchMessage("Could not reach live search. Showing stored local matches only.");
+          setSearchResults([]);
+          setSearchMessage("Could not reach live search. Try refreshing Search again.");
         }
       } finally {
         if (!controller.signal.aborted) setSearching(false);
@@ -1334,14 +1329,10 @@ export default function AIRadarApp() {
   const filteredRadarItems = useMemo(() => filterItems(items, radarFilter), [items, radarFilter]);
   const visibleRadarItems = filteredRadarItems.slice(0, visibleRadarCount);
   const featuredItem = filteredRadarItems.find((item) => item.isFeatured) ?? filteredRadarItems[0];
-  const localSearchResults = useMemo(
-    () => searchItems(filterItems(items, searchFilter), searchQuery),
-    [items, searchFilter, searchQuery],
-  );
   const visibleSearchResults = useMemo(() => {
-    const base = searchQuery.trim().length >= 2 && searchResults ? searchResults : localSearchResults;
+    const base = searchResults ?? [];
     return filterItems(base, searchFilter);
-  }, [localSearchResults, searchFilter, searchQuery, searchResults]);
+  }, [searchFilter, searchResults]);
   const savedTutorials = savedIds.map((id) => itemMap.get(id)).filter((item): item is AIUpdate => Boolean(item));
   const projectItems = Object.keys(projectStatuses)
     .map((id) => itemMap.get(id))

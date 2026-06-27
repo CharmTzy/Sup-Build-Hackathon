@@ -11,13 +11,13 @@ function getClientId(request: NextRequest, body?: { clientId?: string }) {
 export async function GET(request: NextRequest) {
   const clientId = getClientId(request);
   if (!clientId) {
-    return NextResponse.json({ items: [], source: "mock", message: "clientId is required." }, { status: 400 });
+    return NextResponse.json({ items: [], source: "live", message: "clientId is required." }, { status: 400 });
   }
 
   const items = await getSavedItems(clientId);
   return NextResponse.json({
     items: items ?? [],
-    source: items ? "live" : "mock",
+    source: "live",
     message: items ? "Saved items loaded from database." : "Database is not configured. Using local saved items.",
   });
 }

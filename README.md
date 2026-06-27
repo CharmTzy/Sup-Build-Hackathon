@@ -54,8 +54,8 @@ Without `DATABASE_URL`, live Exa/OpenAI can respond but generated cards and user
 
 With keys, these route handlers become live:
 
-- `app/api/radar/route.ts`: instant database/mock response -> background Exa news search -> OpenAI structured AI Radar posts -> database cache
-- `app/api/search/route.ts`: Exa semantic search -> OpenAI structured result cards
+- `app/api/radar/route.ts`: instant stored live posts -> background Exa news search -> OpenAI structured AI Radar posts -> database cache
+- `app/api/search/route.ts`: all stored/crawled live posts plus background Exa refresh for queries
 - `app/api/ask/route.ts`: OpenAI answer synthesis over the current Radar dataset
 - `app/api/crawl/route.ts`: Exa URL crawl/content extraction -> OpenAI structured AI Radar cards
 - `app/api/health/route.ts`: safe server-side checks for database, Exa, and OpenAI configuration
@@ -144,7 +144,7 @@ Current tables:
 
 ### Health Check
 
-Use this when the UI shows mock data and you expect live data:
+Use this when the UI has no live posts and you expect database/API data:
 
 ```bash
 curl http://localhost:3000/api/health
@@ -214,7 +214,6 @@ See `DEPLOYMENT.md` for the full checklist and troubleshooting notes.
 - `components/ai-radar-app.tsx`: product UI and interactions
 - `lib/live.ts`: Exa + OpenAI server utilities
 - `lib/db.ts`: optional Neon cache utilities
-- `lib/mock-data.ts`: offline/demo dataset
 - `lib/radar-utils.ts`: filters, search, score messages, exports, progress helpers
 
 ## Hackathon Status
@@ -244,7 +243,7 @@ Still missing:
 
 High-impact improvements:
 
-- Add a hackathon demo toggle showing `Live`, `Cached`, and `Mock` source states.
+- Add a hackathon demo toggle showing `Live`, `Stored`, and `Refreshing` source states.
 - Cache Search and Crawl results by normalized query/URL hash.
 - Add one-click "Generate from URL" in Search or Launchpad too.
 - Add a background job queue for continuous preference-based crawling.

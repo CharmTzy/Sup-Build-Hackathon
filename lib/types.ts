@@ -1,6 +1,6 @@
 export type Difficulty = "Beginner" | "Intermediate" | "Advanced";
 export type PortfolioValue = "Low" | "Medium" | "High";
-export type SourceType = "Live" | "Mock";
+export type SourceType = "Live";
 export type StudentDiscount = "Yes" | "No" | "Unknown";
 export type TrialCredits = "Yes" | "No" | "Unknown";
 
@@ -95,7 +95,7 @@ export interface UserPreferences {
 
 export interface RadarResponse {
   items: AIUpdate[];
-  source: "live" | "mock";
+  source: "live";
   generatedAt: string;
   message: string;
   hasMore?: boolean;
@@ -103,5 +103,5 @@ export interface RadarResponse {
 
 export interface AskResponse {
   answer: string;
-  source: "live" | "mock";
+  source: "live";
 }

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getRadarPosts } from "@/lib/db";
 import { askOpenAI } from "@/lib/live";
-import { getMockUpdates } from "@/lib/mock-data";
 import { searchItems } from "@/lib/radar-utils";
 import type { AIUpdate } from "@/lib/types";
 
@@ -27,7 +27,15 @@ export async function POST(request: NextRequest) {
   };
 
   const question = body.question?.trim() || "What should I try today?";
-  const items = body.items?.length ? body.items : getMockUpdates();
+  const storedItems = body.items?.length ? null : await getRadarPosts({ limit: null }).catch(() => null);
+  const items = body.items?.length ? body.items : storedItems ?? [];
+
+  if (!items.length) {
+    return NextResponse.json({
+      answer: "No live Radar posts are loaded yet. Refresh Radar or crawl a source first, then ask again.",
+      source: "live",
+    });
+  }
 
   try {
     if (process.env.OPENAI_API_KEY) {
@@ -46,6 +54,6 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({
     answer: fallbackAnswer(question, items),
-    source: "mock",
+    source: "live",
   });
 }

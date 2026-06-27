@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         items: [],
-        source: "mock",
+        source: "live",
         message: "Send a url or urls array to crawl with Exa and transform with OpenAI.",
       },
       { status: 400 },
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         items: [],
-        source: "mock",
+        source: "live",
         message: "EXA_API_KEY is required for crawl.",
       },
       { status: 503 },
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({
     items: items ?? [],
-    source: items?.length ? "live" : "mock",
+    source: "live",
     generatedAt: new Date().toISOString(),
     message: items?.length
       ? "Crawled source pages with Exa. OpenAI enrichment is used when it responds quickly."

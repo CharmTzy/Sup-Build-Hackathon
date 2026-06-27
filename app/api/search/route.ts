@@ -26,7 +26,6 @@ export async function GET(request: NextRequest) {
   try {
     const stored = await getRadarPosts({
       query: query || undefined,
-      preferences: preferences ?? undefined,
       limit: null,
     });
 
