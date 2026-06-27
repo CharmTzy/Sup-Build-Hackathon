@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    if (process.env.EXA_API_KEY && process.env.OPENAI_API_KEY) {
+    if (process.env.EXA_API_KEY) {
       const liveItems = await getLiveRadarUpdates(`AI tools updates tutorials perks for ${query}`);
 
       if (liveItems?.length) {
@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
           items: liveItems,
           source: "live",
           generatedAt: new Date().toISOString(),
-          message: "Live Exa semantic search transformed by OpenAI.",
+          message: "Live Exa semantic search loaded. OpenAI enrichment is used when it responds quickly.",
         });
       }
     }
@@ -38,6 +38,6 @@ export async function GET(request: NextRequest) {
     items: searchItems(getMockUpdates(), query),
     source: "mock",
     generatedAt: new Date().toISOString(),
-    message: "Local fallback search. Add EXA_API_KEY and OPENAI_API_KEY for live semantic search.",
+    message: "Local fallback search. Add EXA_API_KEY for live semantic search.",
   });
 }

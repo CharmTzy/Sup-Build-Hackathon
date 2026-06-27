@@ -33,12 +33,12 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (!process.env.EXA_API_KEY || !process.env.OPENAI_API_KEY) {
+  if (!process.env.EXA_API_KEY) {
     return NextResponse.json(
       {
         items: [],
         source: "mock",
-        message: "EXA_API_KEY and OPENAI_API_KEY are required for crawl.",
+        message: "EXA_API_KEY is required for crawl.",
       },
       { status: 503 },
     );
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
     source: items?.length ? "live" : "mock",
     generatedAt: new Date().toISOString(),
     message: items?.length
-      ? "Crawled source pages with Exa and transformed them with OpenAI."
+      ? "Crawled source pages with Exa. OpenAI enrichment is used when it responds quickly."
       : "Exa crawl returned no usable source content.",
   });
 }

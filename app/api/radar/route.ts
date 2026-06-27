@@ -6,7 +6,7 @@ import { getMockUpdates } from "@/lib/mock-data";
 export const dynamic = "force-dynamic";
 
 function refreshRadarInBackground(cacheKey: string) {
-  if (!process.env.EXA_API_KEY || !process.env.OPENAI_API_KEY) return;
+  if (!process.env.EXA_API_KEY) return;
 
   getLiveRadarUpdates()
     .then(async (items) => {
@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
         items: storedPosts,
         source: "live",
         generatedAt: new Date().toISOString(),
-        message: "Radar posts loaded from database. Live refresh runs in the background.",
+        message: "Radar posts loaded from database. Live Exa refresh runs in the background.",
         hasMore: storedPosts.length === limit,
       });
     }
@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
           items: cached.items.slice(0, limit),
           source: "live",
           generatedAt: cached.updatedAt,
-          message: "Cached Radar posts loaded first. A live refresh is running in the background.",
+          message: "Cached Radar posts loaded first. A live Exa refresh is running in the background.",
           hasMore: cached.items.length > limit,
         });
       }
@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
     generatedAt: new Date().toISOString(),
     message:
       offset === 0
-        ? "Demo posts shown immediately. Live Exa + OpenAI refresh is running in the background."
+        ? "Demo posts shown immediately. Live Exa refresh is running in the background."
         : "No more stored Radar posts yet.",
     hasMore: offset === 0 && getMockUpdates().length > limit,
   });
