@@ -2,6 +2,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import {
+  ArrowLeft,
   BadgeCheck,
   Bell,
   Bookmark,
@@ -516,150 +517,142 @@ function ModalShell({
   );
 }
 
-function DetailsModal({
+function ArticlePage({
   item,
   alternatives,
-  onClose,
+  saved,
+  onBack,
+  onSave,
   onTutorial,
+  onCopyPrompt,
 }: {
   item: AIUpdate;
   alternatives: AIUpdate[];
-  onClose: () => void;
+  saved: boolean;
+  onBack: () => void;
+  onSave: (item: AIUpdate) => void;
   onTutorial: (item: AIUpdate) => void;
+  onCopyPrompt: (text: string, message?: string, postId?: string) => void;
 }) {
   return (
-    <ModalShell title={item.toolName} onClose={onClose}>
-      <div className="space-y-5">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="rounded-full bg-violet-500 px-2.5 py-1 text-xs font-bold uppercase tracking-[0.12em] text-white">
-              {item.category}
-            </p>
-            <SourceLink item={item} />
-          </div>
-          <h3 className="mt-2 text-2xl font-black leading-tight text-white">{item.title}</h3>
-          <p className="mt-3 text-base leading-7 text-slate-200">{item.summary}</p>
+    <article className="mx-auto max-w-3xl pb-16">
+      <button
+        type="button"
+        onClick={onBack}
+        className="mb-8 inline-flex items-center gap-2 text-sm font-bold text-violet-200 transition hover:text-white"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Back to Radar
+      </button>
+
+      <header className="border-b border-white/10 pb-8">
+        <div className="flex flex-wrap items-center gap-3 text-sm text-slate-300">
+          <span className="font-black uppercase tracking-[0.1em] text-violet-200">{item.category}</span>
+          <span>{formatDate(item.date)}</span>
+          <span>{item.difficulty}</span>
+          <SourceLink item={item} />
         </div>
+        <p className="mt-6 text-sm font-bold text-violet-200">{item.toolName}</p>
+        <h1 className="mt-3 text-4xl font-black leading-tight tracking-tight text-white lg:text-6xl">{item.title}</h1>
+        <p className="mt-6 text-xl leading-9 text-slate-200">{item.summary}</p>
+        <div className="mt-6 flex flex-wrap gap-4 text-sm font-bold text-slate-300">
+          <span>Useful: {item.usefulScore}/10</span>
+          <span>Student fit: {item.studentRelevanceScore}/10</span>
+          <span>Access: {accessLabel(item)}</span>
+        </div>
+      </header>
 
-        <section className="rounded-2xl border border-white/10 bg-white/[0.05] p-4">
-          <h4 className="text-sm font-black text-white">What happened</h4>
-          <p className="mt-2 text-sm leading-6 text-slate-300">{item.longExplanation}</p>
-        </section>
-
-        <section className="rounded-2xl border border-white/10 bg-white/[0.05] p-4">
-          <h4 className="text-sm font-black text-white">In simple terms</h4>
-          <p className="mt-2 text-sm leading-6 text-slate-300">
-            {item.toolName} is worth tracking because it may change how you study, build, research, or ship small
-            projects. You do not need to understand every technical detail first. Start by learning what problem it
-            solves, what input it needs, what output it gives you, and where it can fail.
+      <div className="mt-10 space-y-10 text-base leading-8 text-slate-200">
+        <section className="space-y-4">
+          <p>{item.longExplanation}</p>
+          <p>{item.whyItMatters}</p>
+          <p>
+            In practical terms, treat this as something to evaluate through one small task first. Look at what input it
+            needs, what output it gives, whether the result saves time, and whether the access model fits your budget or
+            school project timeline.
           </p>
         </section>
 
-        <section className="rounded-2xl border border-white/10 bg-white/[0.05] p-4">
-          <h4 className="text-sm font-black text-white">Why it matters</h4>
-          <p className="mt-2 text-sm leading-6 text-slate-300">{item.whyItMatters}</p>
+        <section className="space-y-4">
+          <h2 className="text-2xl font-black text-white">Who this is useful for</h2>
+          <p>
+            This is best for {item.bestFor.join(", ").toLowerCase()}. The strongest reasons to try it are{" "}
+            {item.perks.join(", ").toLowerCase()}. If you are learning, use it as a guided experiment instead of trying
+            to master the whole product in one sitting.
+          </p>
+          <PerkBadges item={item} />
         </section>
 
-        <section className="rounded-2xl border border-violet-400/20 bg-violet-500/10 p-4">
-          <h4 className="text-sm font-black text-white">{item.tutorial.title}</h4>
-          <p className="mt-2 text-sm leading-6 text-violet-100">{item.tutorial.goal}</p>
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <IconBadge icon={Zap}>{item.tutorial.estimatedTime}</IconBadge>
-            <IconBadge icon={BadgeCheck}>{item.tutorial.difficulty}</IconBadge>
-          </div>
-          <ol className="mt-4 space-y-3">
-            {item.tutorial.steps.map((step, index) => (
-              <li key={step} className="flex gap-3 text-sm leading-6 text-slate-200">
-                <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-violet-500 text-xs font-black text-white">
-                  {index + 1}
-                </span>
-                {step}
-              </li>
+        <section className="space-y-4">
+          <h2 className="text-2xl font-black text-white">{item.tutorial.title}</h2>
+          <p>
+            Goal: {item.tutorial.goal} Plan around {item.tutorial.estimatedTime.toLowerCase()} and keep the output
+            small enough that you can judge it honestly.
+          </p>
+          <ol className="ml-5 list-decimal space-y-3 marker:font-black marker:text-violet-300">
+            {item.tutorial.steps.map((step) => (
+              <li key={step}>{step}</li>
             ))}
           </ol>
+          <p>
+            Expected output: {item.tutorial.expectedOutput} After that, the useful next move is:{" "}
+            {item.tutorial.nextStep}
+          </p>
         </section>
 
-        <section className="rounded-2xl border border-white/10 bg-white/[0.05] p-4">
-          <h4 className="text-sm font-black text-white">Before you try it</h4>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.1em] text-slate-400">Best for</p>
-              <p className="mt-1 text-sm leading-6 text-slate-300">{item.bestFor.join(", ")}</p>
-            </div>
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.1em] text-slate-400">Tools needed</p>
-              <p className="mt-1 text-sm leading-6 text-slate-300">{item.tutorial.toolsNeeded.join(", ")}</p>
-            </div>
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.1em] text-slate-400">Expected output</p>
-              <p className="mt-1 text-sm leading-6 text-slate-300">{item.tutorial.expectedOutput}</p>
-            </div>
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.1em] text-slate-400">Next step</p>
-              <p className="mt-1 text-sm leading-6 text-slate-300">{item.tutorial.nextStep}</p>
-            </div>
-          </div>
+        <section className="space-y-4">
+          <h2 className="text-2xl font-black text-white">Starter prompt</h2>
+          <p className="whitespace-pre-wrap text-slate-300">{item.tutorial.prompt}</p>
+        </section>
+
+        <section className="space-y-4">
+          <h2 className="text-2xl font-black text-white">Before you spend time on it</h2>
+          <p>
+            You will need {item.tutorial.toolsNeeded.join(", ").toLowerCase()}. Watch out for{" "}
+            {[...item.tutorial.commonMistakes, ...item.limitations].join(", ").toLowerCase()}. These are not reasons to
+            skip it automatically, but they are the checks that stop a quick experiment from becoming wasted time.
+          </p>
         </section>
 
         {(item.access.paidOnly || item.access.waitlistRequired) && alternatives.length ? (
-          <section className="rounded-2xl border border-emerald-300/20 bg-emerald-300/10 p-4">
-            <h4 className="text-sm font-black text-white">Free or easier alternatives</h4>
-            <div className="mt-3 grid gap-3">
-              {alternatives.slice(0, 3).map((alternative) => (
-                <article key={alternative.id} className="rounded-2xl border border-white/10 bg-[#0b0917]/50 p-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h5 className="font-black text-white">{alternative.toolName}</h5>
-                    <span className="rounded-full bg-emerald-300 px-2 py-1 text-[11px] font-black text-slate-950">
-                      {alternative.access.openSource ? "Open source" : "Free tier"}
-                    </span>
-                  </div>
-                  <p className="mt-2 text-sm leading-6 text-slate-300">{alternative.summary}</p>
-                </article>
-              ))}
-            </div>
+          <section className="space-y-4">
+            <h2 className="text-2xl font-black text-white">Easier alternatives</h2>
+            <p>
+              If this is paid, invite-only, or too advanced right now, compare it with{" "}
+              {alternatives
+                .slice(0, 3)
+                .map((alternative) => alternative.toolName)
+                .join(", ")}
+              . Pick the option that lets you test the same idea fastest, even if it is less powerful.
+            </p>
           </section>
         ) : null}
 
-        <section className="rounded-2xl border border-white/10 bg-white/[0.05] p-4">
-          <h4 className="text-sm font-black text-white">Starter prompt or checklist</h4>
-          <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-300">{item.tutorial.prompt}</p>
-        </section>
-
-        <section className="space-y-2">
-          <h4 className="text-sm font-black text-white">Useful parts</h4>
+        <footer className="border-t border-white/10 pt-8">
           <div className="flex flex-wrap gap-2">
-            {item.perks.map((perk) => (
-              <span key={perk} className="rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-xs font-semibold text-violet-200">
-                {perk}
-              </span>
-            ))}
+            <ActionButton icon={Play} onClick={() => onTutorial(item)}>
+              Open Tutorial
+            </ActionButton>
+            <ActionButton icon={Copy} onClick={() => onCopyPrompt(item.tutorial.prompt, "Starter prompt copied", item.id)}>
+              Copy Prompt
+            </ActionButton>
+            <ActionButton icon={Bookmark} onClick={() => onSave(item)} active={saved}>
+              {saved ? "Unsave" : "Save"}
+            </ActionButton>
           </div>
-          <PerkBadges item={item} />
-        </section>
-        <section className="space-y-2">
-          <h4 className="text-sm font-black text-white">Common mistakes and limitations</h4>
-          <ul className="space-y-2">
-            {item.tutorial.commonMistakes.map((mistake) => (
-              <li key={mistake} className="flex gap-2 text-sm leading-6 text-slate-300">
-                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-300" />
-                {mistake}
-              </li>
-            ))}
-            {item.limitations.map((limitation) => (
-              <li key={limitation} className="flex gap-2 text-sm leading-6 text-slate-300">
-                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-400" />
-                {limitation}
-              </li>
-            ))}
-          </ul>
-        </section>
-        <div className="grid grid-cols-1 gap-2">
-          <ActionButton icon={Play} onClick={() => onTutorial(item)}>
-            Open Tutorial
-          </ActionButton>
-        </div>
+          {item.sourceUrl ? (
+            <a
+              href={item.sourceUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-6 inline-flex text-sm font-bold text-violet-200 transition hover:text-white"
+            >
+              Read the original crawl source
+            </a>
+          ) : null}
+        </footer>
       </div>
-    </ModalShell>
+    </article>
   );
 }
 
@@ -1130,6 +1123,16 @@ export default function AIRadarApp() {
     openai?: { ok?: boolean };
   } | null>(null);
   const loadingSearchPageRef = useRef(false);
+
+  const handleTabChange = useCallback((tab: TabId) => {
+    setDetailsItem(null);
+    setActiveTab(tab);
+  }, []);
+
+  useEffect(() => {
+    if (!detailsItem) return;
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [detailsItem]);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -1761,9 +1764,21 @@ export default function AIRadarApp() {
 
   return (
     <div className="min-h-dvh overflow-x-hidden bg-[radial-gradient(ellipse_at_15%_0%,rgba(139,111,255,0.22),transparent_32%),radial-gradient(ellipse_at_85%_10%,rgba(79,123,255,0.16),transparent_34%),radial-gradient(ellipse_at_50%_80%,rgba(99,71,220,0.10),transparent_40%),linear-gradient(160deg,#0b0917_0%,#0d0a1e_50%,#0f0c26_100%)] text-white">
-      <WebsiteNav activeTab={activeTab} onTabChange={setActiveTab} onAsk={() => setAskOpen(true)} feedSource={feedSource} />
+      <WebsiteNav activeTab={activeTab} onTabChange={handleTabChange} onAsk={() => setAskOpen(true)} feedSource={feedSource} />
 
       <main className="mx-auto w-full max-w-7xl px-5 py-8 lg:px-8 lg:py-10">
+        {detailsItem ? (
+          <ArticlePage
+            item={detailsItem}
+            alternatives={detailAlternatives}
+            saved={savedIds.includes(detailsItem.id)}
+            onBack={() => setDetailsItem(null)}
+            onSave={toggleSavedItem}
+            onTutorial={setTutorialItem}
+            onCopyPrompt={copyText}
+          />
+        ) : (
+          <>
         {activeTab === "radar" ? (
           <section className="space-y-8">
             <div className="grid gap-5 lg:grid-cols-[minmax(0,1.55fr)_minmax(320px,0.9fr)]">
@@ -2329,18 +2344,11 @@ export default function AIRadarApp() {
             </div>
           </section>
         ) : null}
+          </>
+        )}
       </main>
 
       <Toast message={toast} />
-
-      {detailsItem ? (
-        <DetailsModal
-          item={detailsItem}
-          alternatives={detailAlternatives}
-          onClose={() => setDetailsItem(null)}
-          onTutorial={(item) => { setDetailsItem(null); setTutorialItem(item); }}
-        />
-      ) : null}
 
       {tutorialItem ? (
         <TutorialModal item={tutorialItem} onClose={() => setTutorialItem(null)} onCopy={(text) => copyText(text, "Prompt copied", tutorialItem.id)} />

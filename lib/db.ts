@@ -1,5 +1,6 @@
 import { neon } from "@neondatabase/serverless";
 import { Pool } from "pg";
+import { rescoreAIUpdate } from "@/lib/scoring";
 import type { AIUpdate, ProjectStatus, UserPreferences } from "@/lib/types";
 
 const CACHE_TTL_MS = 1000 * 60 * 60 * 6;
@@ -196,7 +197,7 @@ async function ensureSchema(db: Queryable) {
 }
 
 function rowToAIUpdate(row: Record<string, unknown>): AIUpdate {
-  return {
+  return rescoreAIUpdate({
     id: String(row.id),
     title: String(row.title),
     toolName: String(row.tool_name),
@@ -223,7 +224,7 @@ function rowToAIUpdate(row: Record<string, unknown>): AIUpdate {
     sourceUrl: row.source_url ? String(row.source_url) : undefined,
     isSaved: false,
     isFeatured: Boolean((row.raw_post as AIUpdate | undefined)?.isFeatured),
-  };
+  });
 }
 
 async function upsertRadarPost(db: Queryable, item: AIUpdate) {
