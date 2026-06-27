@@ -109,7 +109,7 @@ function Toast({ message }: { message: string | null }) {
           initial={{ opacity: 0, y: 20, scale: 0.95 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 20, scale: 0.95 }}
-          className="fixed bottom-24 left-1/2 z-50 w-[min(390px,calc(100vw-32px))] -translate-x-1/2 rounded-2xl border border-white/15 bg-slate-950/90 px-4 py-3 text-sm font-medium text-white shadow-2xl shadow-cyan-950/40 backdrop-blur-xl"
+          className="fixed bottom-6 left-1/2 z-50 w-[min(440px,calc(100vw-32px))] -translate-x-1/2 rounded-2xl border border-white/15 bg-slate-950/90 px-4 py-3 text-sm font-medium text-white shadow-2xl shadow-cyan-950/40 backdrop-blur-xl"
         >
           {message}
         </motion.div>
@@ -135,7 +135,7 @@ function FilterChips({
   onSelect: (filter: string) => void;
 }) {
   return (
-    <div className="-mx-5 flex gap-2 overflow-x-auto px-5 pb-1 scrollbar-none">
+    <div className="flex flex-wrap gap-2 pb-1">
       {filterChips.map((chip) => (
         <button
           key={chip}
@@ -422,7 +422,7 @@ function ModalShell({
           exit={{ opacity: 0, y: 24, scale: 0.98 }}
           transition={{ type: "spring", stiffness: 260, damping: 28 }}
           onClick={(event) => event.stopPropagation()}
-          className="max-h-[88vh] w-full max-w-[430px] overflow-hidden rounded-[28px] border border-white/12 bg-slate-950/95 shadow-2xl shadow-black/50 backdrop-blur-2xl"
+          className="max-h-[88vh] w-full max-w-3xl overflow-hidden rounded-[28px] border border-white/12 bg-slate-950/95 shadow-2xl shadow-black/50 backdrop-blur-2xl"
         >
           <div className="flex items-center justify-between gap-3 border-b border-white/10 px-5 py-4">
             <h2 className="min-w-0 truncate text-lg font-black text-white">{title}</h2>
@@ -835,6 +835,103 @@ function ProgressBar({ label, value }: { label: string; value: number }) {
   );
 }
 
+function StatTile({
+  label,
+  value,
+  icon: Icon,
+  tone = "cyan",
+}: {
+  label: string;
+  value: string | number;
+  icon: LucideIcon;
+  tone?: "cyan" | "fuchsia" | "emerald" | "amber";
+}) {
+  const toneClass = {
+    cyan: "bg-cyan-300 text-slate-950 shadow-cyan-500/20",
+    fuchsia: "bg-fuchsia-300 text-slate-950 shadow-fuchsia-500/20",
+    emerald: "bg-emerald-300 text-slate-950 shadow-emerald-500/20",
+    amber: "bg-amber-200 text-slate-950 shadow-amber-500/20",
+  }[tone];
+
+  return (
+    <div className="rounded-3xl border border-white/10 bg-white/[0.065] p-4 shadow-xl shadow-black/10 backdrop-blur-xl">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-2xl font-black text-white">{value}</p>
+          <p className="mt-1 text-xs font-bold uppercase tracking-[0.1em] text-slate-400">{label}</p>
+        </div>
+        <div className={cx("grid h-11 w-11 shrink-0 place-items-center rounded-2xl shadow-lg", toneClass)}>
+          <Icon className="h-5 w-5" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function WebsiteNav({
+  activeTab,
+  onTabChange,
+  onAsk,
+  feedSource,
+}: {
+  activeTab: TabId;
+  onTabChange: (tab: TabId) => void;
+  onAsk: () => void;
+  feedSource: "live" | "mock";
+}) {
+  return (
+    <header className="sticky top-0 z-30 border-b border-white/10 bg-slate-950/72 backdrop-blur-2xl">
+      <div className="mx-auto flex min-h-20 w-full max-w-7xl flex-col gap-4 px-5 py-4 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+        <button type="button" onClick={() => onTabChange("radar")} className="flex w-fit items-center gap-3 text-left">
+          <div className="grid h-12 w-12 place-items-center rounded-2xl bg-cyan-300 text-slate-950 shadow-lg shadow-cyan-500/20">
+            <Radar className="h-6 w-6" />
+          </div>
+          <div>
+            <p className="text-xl font-black leading-none text-white">AI Radar</p>
+            <p className="mt-1 text-sm text-slate-400">Turn AI news into proof of work</p>
+          </div>
+        </button>
+
+        <nav className="flex flex-wrap items-center gap-2">
+          {tabItems.map((tab) => {
+            const Icon = tab.icon;
+            const active = activeTab === tab.id;
+
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => onTabChange(tab.id)}
+                className={cx(
+                  "inline-flex h-11 items-center gap-2 rounded-full border px-4 text-sm font-black transition",
+                  active
+                    ? "border-cyan-300/50 bg-cyan-300 text-slate-950 shadow-lg shadow-cyan-500/20"
+                    : "border-white/10 bg-white/[0.06] text-slate-200 hover:border-white/20 hover:bg-white/[0.1]",
+                )}
+              >
+                <Icon className="h-4 w-4" />
+                {tab.label}
+              </button>
+            );
+          })}
+        </nav>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <SourcePill source={feedSource} />
+          <button
+            type="button"
+            onClick={onAsk}
+            className="inline-flex h-11 items-center gap-2 rounded-full bg-fuchsia-300 px-4 text-sm font-black text-slate-950 shadow-lg shadow-fuchsia-500/20 transition hover:bg-fuchsia-200"
+          >
+            <MessageCircle className="h-4 w-4" />
+            Ask Radar
+          </button>
+        </div>
+      </div>
+    </header>
+  );
+}
+
 export default function AIRadarApp() {
   const [activeTab, setActiveTab] = useState<TabId>("radar");
   const [items, setItems] = useState<AIUpdate[]>([]);
@@ -1083,32 +1180,57 @@ export default function AIRadarApp() {
   }
 
   return (
-    <div className="min-h-dvh overflow-x-hidden bg-[radial-gradient(circle_at_20%_0%,rgba(34,211,238,0.2),transparent_30%),radial-gradient(circle_at_100%_15%,rgba(236,72,153,0.16),transparent_28%),linear-gradient(160deg,#020617_0%,#06071a_52%,#0f1028_100%)] text-white">
-      <div className="mx-auto flex min-h-dvh w-full max-w-[430px] flex-col border-x border-white/10 bg-slate-950/30 shadow-2xl shadow-black/40">
-        <main className="flex-1 px-5 pb-28 pt-5">
-          {activeTab === "radar" ? (
-            <section className="space-y-5">
-              <header className="space-y-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-cyan-200">{formatDate(new Date().toISOString().slice(0, 10))}</p>
-                    <h1 className="mt-1 text-3xl font-black tracking-tight text-white">Today&apos;s AI Radar</h1>
-                    <p className="mt-2 max-w-[21rem] text-sm leading-6 text-slate-300">
-                      Fresh AI updates turned into tutorials, prompts, and mini projects.
-                    </p>
-                  </div>
+    <div className="min-h-dvh overflow-x-hidden bg-[radial-gradient(circle_at_18%_0%,rgba(34,211,238,0.18),transparent_28%),radial-gradient(circle_at_88%_8%,rgba(236,72,153,0.14),transparent_30%),linear-gradient(160deg,#020617_0%,#06071a_48%,#0c1027_100%)] text-white">
+      <WebsiteNav activeTab={activeTab} onTabChange={setActiveTab} onAsk={() => setAskOpen(true)} feedSource={feedSource} />
+
+      <main className="mx-auto w-full max-w-7xl px-5 py-8 lg:px-8 lg:py-10">
+        {activeTab === "radar" ? (
+          <section className="space-y-8">
+            <div className="grid gap-5 lg:grid-cols-[minmax(0,1.55fr)_minmax(320px,0.9fr)]">
+              <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.07] p-6 shadow-2xl shadow-black/25 backdrop-blur-xl lg:p-8">
+                <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-200/70 to-transparent" />
+                <div className="flex flex-wrap items-center gap-3">
+                  <p className="rounded-full border border-cyan-200/20 bg-cyan-300/10 px-3 py-1 text-sm font-bold text-cyan-100">
+                    {formatDate(new Date().toISOString().slice(0, 10))}
+                  </p>
+                  <SourcePill source={feedSource} />
+                </div>
+                <h1 className="mt-6 max-w-4xl text-4xl font-black tracking-tight text-white lg:text-6xl">
+                  Today&apos;s AI Radar
+                </h1>
+                <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-300">
+                  Fresh AI updates turned into tutorials, prompt packs, perks, and mini projects.
+                </p>
+                <p className="mt-4 max-w-2xl text-base font-semibold text-white">
+                  Stop doomscrolling AI news. Start building with it.
+                </p>
+                <div className="mt-7 flex flex-wrap gap-3">
                   <button
                     type="button"
-                    title="Notifications"
-                    onClick={() => showToast("Daily radar notifications are ready for the Zo scheduler stretch.")}
-                    className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.07] text-cyan-100"
+                    onClick={refreshFeed}
+                    className="inline-flex h-12 items-center gap-2 rounded-full bg-cyan-300 px-5 text-sm font-black text-slate-950 shadow-lg shadow-cyan-500/20 transition hover:bg-cyan-200"
                   >
-                    <Bell className="h-5 w-5" />
+                    {loadingFeed ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                    Refresh Radar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => showToast("Daily radar notifications are ready for the Zo scheduler stretch.")}
+                    className="inline-flex h-12 items-center gap-2 rounded-full border border-white/10 bg-white/[0.07] px-5 text-sm font-bold text-slate-100 transition hover:bg-white/[0.1]"
+                  >
+                    <Bell className="h-4 w-4" />
+                    Daily briefing
                   </button>
                 </div>
-                <div className="rounded-[28px] border border-white/10 bg-white/[0.065] p-4 backdrop-blur-xl">
+              </header>
+
+              <aside className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+                <StatTile label="Updates loaded" value={filteredRadarItems.length || items.length} icon={Radar} tone="cyan" />
+                <StatTile label="Saved tools" value={progress.savedTools} icon={Bookmark} tone="fuchsia" />
+                <StatTile label="Completed projects" value={progress.completedProjects} icon={Trophy} tone="emerald" />
+                <div className="rounded-3xl border border-white/10 bg-white/[0.065] p-4 backdrop-blur-xl sm:col-span-2 lg:col-span-1">
                   <div className="flex items-center justify-between gap-3">
-                    <SourcePill source={feedSource} />
+                    <h2 className="text-sm font-black uppercase tracking-[0.1em] text-white">Live pipeline</h2>
                     <button
                       type="button"
                       title="Refresh feed"
@@ -1119,17 +1241,25 @@ export default function AIRadarApp() {
                     </button>
                   </div>
                   <p className="mt-3 text-sm leading-6 text-slate-300">{feedMessage}</p>
-                  <p className="mt-3 text-sm font-semibold text-white">Stop doomscrolling AI news. Start building with it.</p>
                 </div>
-                <FilterChips active={radarFilter} onSelect={setRadarFilter} />
-              </header>
+              </aside>
+            </div>
 
-              {loadingFeed && items.length === 0 ? (
-                <div className="grid min-h-[320px] place-items-center rounded-[28px] border border-white/10 bg-white/[0.05]">
-                  <Loader2 className="h-8 w-8 animate-spin text-cyan-200" />
-                </div>
-              ) : featuredItem ? (
-                <div className="space-y-4">
+            <div className="rounded-[28px] border border-white/10 bg-white/[0.055] p-4 backdrop-blur-xl">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-sm font-black uppercase tracking-[0.1em] text-slate-300">Radar filters</h2>
+                <span className="text-sm text-slate-400">{filteredRadarItems.length} matching updates</span>
+              </div>
+              <FilterChips active={radarFilter} onSelect={setRadarFilter} />
+            </div>
+
+            {loadingFeed && items.length === 0 ? (
+              <div className="grid min-h-[380px] place-items-center rounded-[28px] border border-white/10 bg-white/[0.05]">
+                <Loader2 className="h-9 w-9 animate-spin text-cyan-200" />
+              </div>
+            ) : featuredItem ? (
+              <div className="grid gap-6 xl:grid-cols-[minmax(360px,0.95fr)_minmax(0,1.55fr)]">
+                <div className="xl:sticky xl:top-28 xl:self-start">
                   <RadarCard
                     item={featuredItem}
                     featured
@@ -1141,196 +1271,217 @@ export default function AIRadarApp() {
                     onShare={shareItem}
                     onDetails={setDetailsItem}
                   />
-                  <div className="space-y-4">
-                    {feedItems.map((item) => (
-                      <RadarCard
-                        key={item.id}
-                        item={item}
-                        saved={savedIds.includes(item.id)}
-                        onSave={saveItem}
-                        onTutorial={setTutorialItem}
-                        onPromptPack={setPromptItem}
-                        onProject={startProject}
-                        onShare={shareItem}
-                        onDetails={setDetailsItem}
-                      />
-                    ))}
-                  </div>
                 </div>
-              ) : (
-                <div className="rounded-[28px] border border-white/10 bg-white/[0.06] p-6 text-center text-sm text-slate-300">
-                  No matching updates for this filter yet.
-                </div>
-              )}
-            </section>
-          ) : null}
-
-          {activeTab === "search" ? (
-            <section className="space-y-5">
-              <header className="space-y-4">
-                <div>
-                  <h1 className="text-3xl font-black tracking-tight">Search AI Radar</h1>
-                  <p className="mt-2 text-sm leading-6 text-slate-300">
-                    Find AI tools, updates, tutorials, prompts, and student-friendly perks.
-                  </p>
-                </div>
-                <label className="flex h-14 items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.075] px-4 backdrop-blur-xl">
-                  <Search className="h-5 w-5 shrink-0 text-cyan-200" />
-                  <input
-                    value={searchQuery}
-                    onChange={(event) => handleSearchInput(event.target.value)}
-                    placeholder="Search presentations, coding, video, free tools..."
-                    className="min-w-0 flex-1 bg-transparent text-base text-white outline-none placeholder:text-slate-500"
-                  />
-                  {searching ? <Loader2 className="h-4 w-4 animate-spin text-cyan-200" /> : null}
-                </label>
-                <div className="-mx-5 flex gap-2 overflow-x-auto px-5 pb-1 scrollbar-none">
-                  {popularSearches.map((chip) => (
-                    <button
-                      key={chip}
-                      type="button"
-                      onClick={() => setSearchQuery(chip)}
-                      className="h-9 shrink-0 rounded-full border border-white/10 bg-white/[0.06] px-3 text-xs font-bold text-slate-200"
-                    >
-                      {chip}
-                    </button>
-                  ))}
-                </div>
-                <FilterChips active={searchFilter} onSelect={setSearchFilter} />
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm text-slate-400">{visibleSearchResults.length} results</p>
-                  <button
-                    type="button"
-                    onClick={openCompare}
-                    className="inline-flex h-10 items-center gap-2 rounded-full border border-white/10 bg-white/[0.07] px-4 text-sm font-bold text-white"
-                  >
-                    <GitCompare className="h-4 w-4" />
-                    Compare {compareIds.length ? `(${compareIds.length})` : ""}
-                  </button>
-                </div>
-              </header>
-
-              {visibleSearchResults.length ? (
-                <div className="space-y-4">
-                  {visibleSearchResults.map((item) => (
-                    <SearchResultCard
+                <div className="grid gap-5 md:grid-cols-2">
+                  {feedItems.map((item) => (
+                    <RadarCard
                       key={item.id}
                       item={item}
                       saved={savedIds.includes(item.id)}
-                      compared={compareIds.includes(item.id)}
-                      onDetails={setDetailsItem}
-                      onTutorial={setTutorialItem}
                       onSave={saveItem}
-                      onCompare={toggleCompare}
+                      onTutorial={setTutorialItem}
+                      onPromptPack={setPromptItem}
+                      onProject={startProject}
+                      onShare={shareItem}
+                      onDetails={setDetailsItem}
                     />
                   ))}
                 </div>
-              ) : (
-                <div className="rounded-[28px] border border-white/10 bg-white/[0.06] p-6 text-center">
-                  <Search className="mx-auto h-8 w-8 text-cyan-200" />
-                  <p className="mt-3 text-sm leading-6 text-slate-300">
-                    No matching AI updates found. Try searching for &quot;presentation&quot;, &quot;coding&quot;, &quot;video&quot;, or
-                    &quot;free tools&quot;.
-                  </p>
-                </div>
-              )}
-            </section>
-          ) : null}
+              </div>
+            ) : (
+              <div className="rounded-[28px] border border-white/10 bg-white/[0.06] p-8 text-center text-sm text-slate-300">
+                No matching updates for this filter yet.
+              </div>
+            )}
+          </section>
+        ) : null}
 
-          {activeTab === "build" ? (
-            <section className="space-y-5">
-              <header>
-                <h1 className="text-3xl font-black tracking-tight">Build</h1>
-                <p className="mt-2 text-sm leading-6 text-slate-300">Turn AI updates into proof of work.</p>
-              </header>
+        {activeTab === "search" ? (
+          <section className="space-y-7">
+            <header className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+              <div>
+                <p className="text-sm font-bold uppercase tracking-[0.12em] text-cyan-200">Semantic discovery</p>
+                <h1 className="mt-2 text-4xl font-black tracking-tight lg:text-5xl">Search AI Radar</h1>
+                <p className="mt-3 max-w-2xl text-base leading-7 text-slate-300">
+                  Find AI tools, updates, tutorials, prompts, and student-friendly perks.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={openCompare}
+                className="inline-flex h-12 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.07] px-5 text-sm font-black text-white transition hover:bg-white/[0.1]"
+              >
+                <GitCompare className="h-4 w-4" />
+                Compare {compareIds.length ? `(${compareIds.length})` : ""}
+              </button>
+            </header>
 
-              <section className="rounded-[28px] border border-white/10 bg-white/[0.07] p-4 backdrop-blur-xl">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <h2 className="text-lg font-black text-white">Portfolio Progress</h2>
-                    <p className="mt-1 text-sm text-slate-400">Every AI update becomes something you can try, build, and show.</p>
-                  </div>
-                  <div className="grid h-14 w-14 place-items-center rounded-2xl bg-cyan-300 text-slate-950">
-                    <Trophy className="h-7 w-7" />
-                  </div>
-                </div>
-                <div className="mt-4 grid grid-cols-2 gap-2">
-                  {[
-                    ["Projects", progress.completedProjects],
-                    ["Tutorials", progress.tutorialsCompleted],
-                    ["Prompts", progress.promptsCopied],
-                    ["Saved", progress.savedTools],
-                  ].map(([label, value]) => (
-                    <div key={label} className="rounded-2xl border border-white/10 bg-slate-950/30 p-3">
-                      <p className="text-2xl font-black text-white">{value}</p>
-                      <p className="text-xs font-bold uppercase tracking-[0.08em] text-slate-500">{label}</p>
+            <div className="rounded-[32px] border border-white/10 bg-white/[0.065] p-5 backdrop-blur-xl">
+              <label className="flex h-16 items-center gap-4 rounded-2xl border border-white/10 bg-slate-950/35 px-5">
+                <Search className="h-5 w-5 shrink-0 text-cyan-200" />
+                <input
+                  value={searchQuery}
+                  onChange={(event) => handleSearchInput(event.target.value)}
+                  placeholder="Search presentations, coding, video, free tools..."
+                  className="min-w-0 flex-1 bg-transparent text-lg text-white outline-none placeholder:text-slate-500"
+                />
+                {searching ? <Loader2 className="h-5 w-5 animate-spin text-cyan-200" /> : null}
+              </label>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {popularSearches.map((chip) => (
+                  <button
+                    key={chip}
+                    type="button"
+                    onClick={() => handleSearchInput(chip)}
+                    className="h-9 rounded-full border border-white/10 bg-white/[0.06] px-3 text-xs font-bold text-slate-200 transition hover:bg-white/[0.1]"
+                  >
+                    {chip}
+                  </button>
+                ))}
+              </div>
+              <div className="mt-5 border-t border-white/10 pt-4">
+                <FilterChips active={searchFilter} onSelect={setSearchFilter} />
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm text-slate-400">{visibleSearchResults.length} results</p>
+              <p className="text-sm text-slate-500">Search matches titles, perks, prompts, tutorials, and mini projects.</p>
+            </div>
+
+            {visibleSearchResults.length ? (
+              <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+                {visibleSearchResults.map((item) => (
+                  <SearchResultCard
+                    key={item.id}
+                    item={item}
+                    saved={savedIds.includes(item.id)}
+                    compared={compareIds.includes(item.id)}
+                    onDetails={setDetailsItem}
+                    onTutorial={setTutorialItem}
+                    onSave={saveItem}
+                    onCompare={toggleCompare}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-[28px] border border-white/10 bg-white/[0.06] p-10 text-center">
+                <Search className="mx-auto h-9 w-9 text-cyan-200" />
+                <p className="mt-3 text-sm leading-6 text-slate-300">
+                  No matching AI updates found. Try searching for &quot;presentation&quot;, &quot;coding&quot;, &quot;video&quot;, or
+                  &quot;free tools&quot;.
+                </p>
+              </div>
+            )}
+          </section>
+        ) : null}
+
+        {activeTab === "build" ? (
+          <section className="space-y-7">
+            <header className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+              <div>
+                <p className="text-sm font-bold uppercase tracking-[0.12em] text-cyan-200">Portfolio lab</p>
+                <h1 className="mt-2 text-4xl font-black tracking-tight lg:text-5xl">Build</h1>
+                <p className="mt-3 max-w-2xl text-base leading-7 text-slate-300">Turn AI updates into proof of work.</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => exportFromBuild("linkedin")}
+                  className="inline-flex h-12 items-center gap-2 rounded-full bg-cyan-300 px-5 text-sm font-black text-slate-950 shadow-lg shadow-cyan-500/20"
+                >
+                  <Send className="h-4 w-4" />
+                  LinkedIn post
+                </button>
+                <button
+                  type="button"
+                  onClick={() => exportFromBuild("readme")}
+                  className="inline-flex h-12 items-center gap-2 rounded-full border border-white/10 bg-white/[0.07] px-5 text-sm font-bold text-white"
+                >
+                  <FileText className="h-4 w-4" />
+                  GitHub README
+                </button>
+              </div>
+            </header>
+
+            <div className="grid gap-4 md:grid-cols-4">
+              <StatTile label="Projects completed" value={progress.completedProjects} icon={Trophy} tone="emerald" />
+              <StatTile label="Tutorials completed" value={progress.tutorialsCompleted} icon={CheckCircle2} tone="cyan" />
+              <StatTile label="Prompts copied" value={progress.promptsCopied} icon={Copy} tone="fuchsia" />
+              <StatTile label="Saved tools" value={progress.savedTools} icon={Bookmark} tone="amber" />
+            </div>
+
+            <div className="grid gap-6 lg:grid-cols-[380px_minmax(0,1fr)]">
+              <aside className="space-y-5">
+                <section className="rounded-[28px] border border-white/10 bg-white/[0.07] p-5 backdrop-blur-xl">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <h2 className="text-xl font-black text-white">Portfolio Progress</h2>
+                      <p className="mt-1 text-sm text-slate-400">Every saved update can become a visible artifact.</p>
                     </div>
-                  ))}
-                </div>
-                <div className="mt-4 space-y-4">
-                  <ProgressBar label="Portfolio readiness" value={progress.portfolioScore} />
-                  <ProgressBar label="Weekly progress" value={progress.weeklyProgress} />
-                </div>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <IconBadge icon={Zap}>{streak || 0} day streak</IconBadge>
-                  <IconBadge icon={Check}>{progress.activeProjects} active projects</IconBadge>
-                </div>
-              </section>
+                    <div className="grid h-14 w-14 place-items-center rounded-2xl bg-cyan-300 text-slate-950">
+                      <Trophy className="h-7 w-7" />
+                    </div>
+                  </div>
+                  <div className="mt-5 space-y-4">
+                    <ProgressBar label="Portfolio readiness" value={progress.portfolioScore} />
+                    <ProgressBar label="Weekly progress" value={progress.weeklyProgress} />
+                  </div>
+                  <div className="mt-5 flex flex-wrap gap-2">
+                    <IconBadge icon={Zap}>{streak || 0} day streak</IconBadge>
+                    <IconBadge icon={Check}>{progress.activeProjects} active projects</IconBadge>
+                  </div>
+                </section>
 
-              <section className="space-y-3">
-                <div className="flex items-center justify-between gap-3">
-                  <h2 className="text-lg font-black text-white">Export Actions</h2>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <ActionButton icon={Send} onClick={() => exportFromBuild("linkedin")}>
-                    Generate LinkedIn post
-                  </ActionButton>
-                  <ActionButton icon={FileText} onClick={() => exportFromBuild("readme")}>
-                    Generate GitHub README
-                  </ActionButton>
-                </div>
-              </section>
-
-              <section className="space-y-3">
-                <h2 className="text-lg font-black text-white">Saved Tutorials</h2>
-                {savedTutorials.length ? (
-                  <div className="space-y-3">
-                    {savedTutorials.map((item) => (
-                      <article key={item.id} className="rounded-3xl border border-white/10 bg-white/[0.065] p-4">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-xs font-bold uppercase tracking-[0.1em] text-cyan-200">{item.category}</p>
-                            <h3 className="mt-1 font-black leading-tight text-white">{item.tutorial.title}</h3>
-                            <p className="mt-2 text-sm text-slate-400">
-                              {item.difficulty} · {item.tutorial.estimatedTime}
-                            </p>
+                <section className="rounded-[28px] border border-white/10 bg-white/[0.06] p-5">
+                  <h2 className="text-lg font-black text-white">Saved Tutorials</h2>
+                  {savedTutorials.length ? (
+                    <div className="mt-4 space-y-3">
+                      {savedTutorials.map((item) => (
+                        <article key={item.id} className="rounded-2xl border border-white/10 bg-slate-950/30 p-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="text-xs font-bold uppercase tracking-[0.1em] text-cyan-200">{item.category}</p>
+                              <h3 className="mt-1 text-sm font-black leading-tight text-white">{item.tutorial.title}</h3>
+                              <p className="mt-2 text-xs text-slate-400">
+                                {item.difficulty} · {item.tutorial.estimatedTime}
+                              </p>
+                            </div>
+                            <span className="rounded-full bg-white/[0.08] px-2 py-1 text-[11px] font-bold text-slate-200">
+                              {projectStatuses[item.id] ?? "Saved"}
+                            </span>
                           </div>
-                          <span className="rounded-full bg-white/[0.08] px-2.5 py-1 text-xs font-bold text-slate-200">
-                            {projectStatuses[item.id] ?? "Saved"}
-                          </span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setTutorialItem(item)}
-                          className="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.07] text-sm font-bold text-white"
-                        >
-                          Continue
-                          <ChevronRight className="h-4 w-4" />
-                        </button>
-                      </article>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="rounded-[28px] border border-white/10 bg-white/[0.06] p-5 text-sm leading-6 text-slate-300">
-                    Save a Radar card or Search result and it will appear here.
-                  </div>
-                )}
-              </section>
+                          <button
+                            type="button"
+                            onClick={() => setTutorialItem(item)}
+                            className="mt-3 inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.07] text-xs font-bold text-white"
+                          >
+                            Continue
+                            <ChevronRight className="h-4 w-4" />
+                          </button>
+                        </article>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-4 rounded-2xl border border-white/10 bg-slate-950/30 p-4 text-sm leading-6 text-slate-300">
+                      Save a Radar card or Search result and it will appear here.
+                    </p>
+                  )}
+                </section>
+              </aside>
 
-              <section className="space-y-3">
-                <h2 className="text-lg font-black text-white">Mini Projects</h2>
+              <section className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-xl font-black text-white">Mini Projects</h2>
+                    <p className="mt-1 text-sm text-slate-400">Start, complete, and export work from your saved AI updates.</p>
+                  </div>
+                  <span className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-sm font-bold text-slate-200">
+                    {buildItems.length} projects
+                  </span>
+                </div>
                 {buildItems.length ? (
-                  <div className="space-y-4">
+                  <div className="grid gap-5 xl:grid-cols-2">
                     {buildItems.map((item) => (
                       <MiniProjectCard
                         key={item.id}
@@ -1343,63 +1494,21 @@ export default function AIRadarApp() {
                     ))}
                   </div>
                 ) : (
-                  <article className="rounded-[28px] border border-cyan-200/20 bg-cyan-300/10 p-5">
+                  <article className="rounded-[28px] border border-cyan-200/20 bg-cyan-300/10 p-6">
                     <div className="flex items-center gap-3">
                       <Rocket className="h-6 w-6 text-cyan-100" />
                       <h3 className="font-black text-white">Weekly Challenge</h3>
                     </div>
-                    <p className="mt-3 text-sm leading-6 text-slate-200">
+                    <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-200">
                       Save today&apos;s pick, start the mini project, and export the README after you complete it.
                     </p>
                   </article>
                 )}
               </section>
-            </section>
-          ) : null}
-        </main>
-
-        <button
-          type="button"
-          title="Ask Radar"
-          onClick={() => setAskOpen(true)}
-          className="fixed bottom-24 left-[calc(50%+150px)] z-30 hidden h-12 w-12 -translate-x-1/2 place-items-center rounded-full bg-fuchsia-300 text-slate-950 shadow-xl shadow-fuchsia-950/40 sm:grid"
-        >
-          <MessageCircle className="h-5 w-5" />
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setAskOpen(true)}
-          className="fixed bottom-24 right-4 z-30 grid h-12 w-12 place-items-center rounded-full bg-fuchsia-300 text-slate-950 shadow-xl shadow-fuchsia-950/40 sm:hidden"
-          title="Ask Radar"
-        >
-          <MessageCircle className="h-5 w-5" />
-        </button>
-
-        <nav className="fixed bottom-0 left-1/2 z-30 w-full max-w-[430px] -translate-x-1/2 border-t border-white/10 bg-slate-950/85 px-5 pb-[calc(env(safe-area-inset-bottom)+12px)] pt-3 backdrop-blur-2xl">
-          <div className="grid grid-cols-3 gap-2">
-            {tabItems.map((tab) => {
-              const Icon = tab.icon;
-              const active = activeTab === tab.id;
-
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setActiveTab(tab.id)}
-                  className={cx(
-                    "flex h-14 flex-col items-center justify-center gap-1 rounded-2xl text-xs font-black transition",
-                    active ? "bg-cyan-300 text-slate-950" : "bg-white/[0.06] text-slate-300 hover:bg-white/[0.1]",
-                  )}
-                >
-                  <Icon className="h-5 w-5" />
-                  {tab.label}
-                </button>
-              );
-            })}
-          </div>
-        </nav>
-      </div>
+            </div>
+          </section>
+        ) : null}
+      </main>
 
       <Toast message={toast} />
 
